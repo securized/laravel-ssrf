@@ -13,7 +13,7 @@
     "authors": [
         {
             "name": "securized",
-            "email": "author@domain.com",
+            "email": "root@securized.dev",
             "role": "Developer"
         }
     ],
@@ -43,8 +43,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Securized\\Ssrf\\Tests\\": "tests/",
-            "Workbench\\App\\": "workbench/app/"
+            "Securized\\Ssrf\\Tests\\": "tests/"
         }
     },
     "scripts": {
