@@ -70,7 +70,7 @@ describe('Ssrf facade', function (): void {
     });
 
     test('validate() returns result array for a public IP with no restrictions', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistDomains([])
             ->withWhitelistSchemes([])
             ->withWhitelistPorts([])

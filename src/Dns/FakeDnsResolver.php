@@ -14,6 +14,7 @@ class FakeDnsResolver implements DnsResolver
     public function addRecord(string $host, string ...$ips): self
     {
         $this->records[strtolower($host)] = $ips;
+
         return $this;
     }
 

@@ -37,35 +37,35 @@ function pinnedClient(SsrfOptions $opts, FakeDnsResolver $dns, array &$history =
 
 function unpinnedOpts(bool $pin = false): SsrfOptions
 {
-    return (new SsrfOptions())->withBlacklistIps([])->withPinDns($pin);
+    return (new SsrfOptions)->withBlacklistIps([])->withPinDns($pin);
 }
 
 describe('IPv6 pinning produces a valid URL', function (): void {
     test('pinned IPv6 host is bracketed', function (): void {
-        $dns    = (new FakeDnsResolver())->addRecord('v6.example.com', '2606:4700::1111');
+        $dns = (new FakeDnsResolver)->addRecord('v6.example.com', '2606:4700::1111');
         $result = (new SsrfValidator(unpinnedOpts(true), $dns))->validate('http://v6.example.com/path');
 
         expect($result['url'])->toBe('http://[2606:4700::1111]/path');
     });
 
     test('the pinned IPv6 URL survives a parse round-trip with host and port intact', function (): void {
-        $dns    = (new FakeDnsResolver())->addRecord('v6.example.com', '2606:4700::1111');
+        $dns = (new FakeDnsResolver)->addRecord('v6.example.com', '2606:4700::1111');
         $result = (new SsrfValidator(unpinnedOpts(true), $dns))->validate('http://v6.example.com:8080/path');
-        $uri    = new GuzzleHttp\Psr7\Uri($result['url']);
+        $uri = new GuzzleHttp\Psr7\Uri($result['url']);
 
         expect($uri->getHost())->toBe('[2606:4700::1111]')
             ->and($uri->getPort())->toBe(8080);
     });
 
     test('pinned IPv4 host is not bracketed', function (): void {
-        $dns    = (new FakeDnsResolver())->addRecord('v4.example.com', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('v4.example.com', '93.184.216.34');
         $result = (new SsrfValidator(unpinnedOpts(true), $dns))->validate('http://v4.example.com/path');
 
         expect($result['url'])->toBe('http://93.184.216.34/path');
     });
 
     test('middleware brackets a pinned IPv6 host on the outgoing request', function (): void {
-        $dns     = (new FakeDnsResolver())->addRecord('v6.example.com', '2606:4700::1111');
+        $dns = (new FakeDnsResolver)->addRecord('v6.example.com', '2606:4700::1111');
         $history = [];
         pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://v6.example.com/path');
 
@@ -75,13 +75,13 @@ describe('IPv6 pinning produces a valid URL', function (): void {
 
 describe('validate() reports whether pinning was applied', function (): void {
     test('pinned flag is true when pin_dns is on', function (): void {
-        $dns = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
 
         expect((new SsrfValidator(unpinnedOpts(true), $dns))->validate('http://example.com/')['pinned'])->toBeTrue();
     });
 
     test('pinned flag is false when pin_dns is off', function (): void {
-        $dns = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
 
         expect((new SsrfValidator(unpinnedOpts(), $dns))->validate('http://example.com/')['pinned'])->toBeFalse();
     });
@@ -89,7 +89,7 @@ describe('validate() reports whether pinning was applied', function (): void {
 
 describe('middleware does not pin when pin_dns is disabled', function (): void {
     test('a URL needing normalisation is not silently pinned to its IP', function (): void {
-        $dns     = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
         $history = [];
         pinnedClient(unpinnedOpts(), $dns, $history)->get('HTTP://EXAMPLE.COM/path');
 
@@ -97,7 +97,7 @@ describe('middleware does not pin when pin_dns is disabled', function (): void {
     });
 
     test('an already-normalised URL is left untouched', function (): void {
-        $dns     = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
         $history = [];
         pinnedClient(unpinnedOpts(), $dns, $history)->get('http://example.com/path');
 
@@ -105,7 +105,7 @@ describe('middleware does not pin when pin_dns is disabled', function (): void {
     });
 
     test('the host is still rewritten when pin_dns is enabled', function (): void {
-        $dns     = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
         $history = [];
         pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://example.com/path');
 

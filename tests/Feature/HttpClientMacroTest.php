@@ -56,7 +56,7 @@ describe('Http::ssrf() macro', function (): void {
         // Use a literal IP to avoid DNS resolution in tests; 1.1.1.1 is public (Cloudflare DNS)
         // and not in any blacklisted range.
         Http::fake(['https://1.1.1.1/*' => Http::response('ok', 200)]);
-        $opts     = (new SsrfOptions())->withWhitelistPorts([80, 443]);
+        $opts = (new SsrfOptions)->withWhitelistPorts([80, 443]);
         $response = Http::ssrf($opts)->get('https://1.1.1.1/');
         expect($response->status())->toBe(200);
     });
@@ -68,7 +68,7 @@ describe('Http::ssrf() macro', function (): void {
 
     test('ssrf() chains with other PendingRequest methods', function (): void {
         Http::fake(['https://1.1.1.1/*' => Http::response(['data' => 1], 200)]);
-        $opts     = (new SsrfOptions())->withWhitelistPorts([80, 443]);
+        $opts = (new SsrfOptions)->withWhitelistPorts([80, 443]);
         $response = Http::ssrf($opts)
             ->withHeaders(['Accept' => 'application/json'])
             ->timeout(5)
@@ -84,7 +84,7 @@ describe('Http::ssrf() macro', function (): void {
 describe('Http::ssrf() with options override', function (): void {
     test('HTTPS-only override blocks HTTP', function (): void {
         Http::fake();
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistSchemes(['https'])
             ->withWhitelistDomains([])
             ->withBlacklistIps(['0.0.0.0/0']);

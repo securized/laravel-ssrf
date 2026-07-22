@@ -18,12 +18,12 @@ use Securized\Ssrf\SsrfValidator;
 
 function patternDns(): FakeDnsResolver
 {
-    return (new FakeDnsResolver())->addRecord('evil.com', '93.184.216.34');
+    return (new FakeDnsResolver)->addRecord('evil.com', '93.184.216.34');
 }
 
 describe('malformed domain patterns fail closed', function (): void {
     test('invalid blacklist pattern throws instead of allowing the host', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withBlacklistDomains(['*invalid[']);
 
@@ -32,7 +32,7 @@ describe('malformed domain patterns fail closed', function (): void {
     });
 
     test('invalid whitelist pattern throws instead of allowing the host', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withWhitelistDomains(['*invalid[']);
 
@@ -41,7 +41,7 @@ describe('malformed domain patterns fail closed', function (): void {
     });
 
     test('isSafe() reports false for a malformed pattern rather than true', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withBlacklistDomains(['(unclosed']);
 
@@ -49,7 +49,7 @@ describe('malformed domain patterns fail closed', function (): void {
     });
 
     test('the exception names the offending pattern', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withBlacklistDomains(['*invalid[']);
 
@@ -58,7 +58,7 @@ describe('malformed domain patterns fail closed', function (): void {
     });
 
     test('the exception explains why the pattern is invalid', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withBlacklistDomains(['(unclosed']);
 
@@ -69,17 +69,17 @@ describe('malformed domain patterns fail closed', function (): void {
 
 describe('valid domain patterns still work', function (): void {
     test('a well-formed blacklist pattern blocks a matching host', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withBlacklistDomains(['(.*)\.internal\.test']);
-        $dns = (new FakeDnsResolver())->addRecord('api.internal.test', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('api.internal.test', '93.184.216.34');
 
         expect(fn () => (new SsrfValidator($opts, $dns))->validate('http://api.internal.test/'))
             ->toThrow(InvalidDomainException::class);
     });
 
     test('a well-formed blacklist pattern allows a non-matching host', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withBlacklistIps([])
             ->withBlacklistDomains(['(.*)\.internal\.test']);
 

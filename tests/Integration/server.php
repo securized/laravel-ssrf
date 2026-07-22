@@ -6,7 +6,7 @@
 header('Content-Type: application/json');
 echo json_encode([
     'reached' => true,
-    'method'  => $_SERVER['REQUEST_METHOD'],
-    'uri'     => $_SERVER['REQUEST_URI'],
-    'host'    => $_SERVER['HTTP_HOST'] ?? null,
+    'method' => $_SERVER['REQUEST_METHOD'],
+    'uri' => $_SERVER['REQUEST_URI'],
+    'host' => $_SERVER['HTTP_HOST'] ?? null,
 ]);

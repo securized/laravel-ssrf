@@ -53,6 +53,6 @@ class SsrfProtectionMiddleware
 
     public static function make(?SsrfOptions $options = null): callable
     {
-        return (new self(new SsrfValidator($options ?? new SsrfOptions())))->handler();
+        return (new self(new SsrfValidator($options ?? new SsrfOptions)))->handler();
     }
 }

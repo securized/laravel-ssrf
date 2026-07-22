@@ -39,8 +39,9 @@ class SsrfSafeUrl implements ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             $fail('The :attribute must be a string URL.');
+
             return;
         }
 

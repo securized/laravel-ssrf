@@ -18,6 +18,6 @@ class TestCase extends Orchestra
 
     protected function getEnvironmentSetUp($app): void
     {
-        config()->set('ssrf', require __DIR__ . '/../config/ssrf.php');
+        config()->set('ssrf', require __DIR__.'/../config/ssrf.php');
     }
 }

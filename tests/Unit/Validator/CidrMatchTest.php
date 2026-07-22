@@ -12,7 +12,7 @@ use Securized\Ssrf\SsrfValidator;
 function cidrValidator(array $blacklist): SsrfValidator
 {
     return new SsrfValidator(
-        (new SsrfOptions())
+        (new SsrfOptions)
             ->withWhitelistDomains([])
             ->withWhitelistSchemes([])
             ->withWhitelistPorts([])
@@ -69,9 +69,7 @@ describe('IPv6 CIDR', function (): void {
 });
 
 describe('cross-family CIDR', function (): void {
-    test('IPv6 CIDR does not match IPv4', fn () =>
-        expect(cidrValidator(['::1/128'])->isSafe('http://1.2.3.4/'))->toBeTrue());
+    test('IPv6 CIDR does not match IPv4', fn () => expect(cidrValidator(['::1/128'])->isSafe('http://1.2.3.4/'))->toBeTrue());
 
-    test('IPv4 CIDR does not match IPv6', fn () =>
-        expect(cidrValidator(['127.0.0.0/8'])->isSafe('http://[::1]/'))->toBeTrue());
+    test('IPv4 CIDR does not match IPv6', fn () => expect(cidrValidator(['127.0.0.0/8'])->isSafe('http://[::1]/'))->toBeTrue());
 });

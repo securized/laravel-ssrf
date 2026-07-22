@@ -18,12 +18,10 @@ class SsrfServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        $this->app->bind(SsrfOptions::class, fn ($app): SsrfOptions =>
-            SsrfOptions::fromConfig($app['config']->get('ssrf', []))
+        $this->app->bind(SsrfOptions::class, fn ($app): SsrfOptions => SsrfOptions::fromConfig($app['config']->get('ssrf', []))
         );
 
-        $this->app->bind(SsrfValidator::class, fn ($app): SsrfValidator =>
-            new SsrfValidator($app->make(SsrfOptions::class))
+        $this->app->bind(SsrfValidator::class, fn ($app): SsrfValidator => new SsrfValidator($app->make(SsrfOptions::class))
         );
     }
 
@@ -32,11 +30,13 @@ class SsrfServiceProvider extends PackageServiceProvider
         Http::macro('withSsrfProtection', function (?SsrfOptions $options = null) {
             /** @var \Illuminate\Http\Client\PendingRequest $this */
             $validator = $options ? new SsrfValidator($options) : app(SsrfValidator::class);
+
             return $this->withMiddleware((new SsrfProtectionMiddleware($validator))->handler());
         });
 
         Http::macro('ssrf', function (?SsrfOptions $options = null) {
             /** @var \Illuminate\Http\Client\PendingRequest $this */
+            // @phpstan-ignore-next-line method.notFound (registered above via Http::macro)
             return $this->withSsrfProtection($options);
         });
 

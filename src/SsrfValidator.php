@@ -25,11 +25,12 @@ readonly class SsrfValidator
         private SsrfOptions $options,
         ?DnsResolver $dns = null,
     ) {
-        $this->dns = $dns ?? new NativeDnsResolver();
+        $this->dns = $dns ?? new NativeDnsResolver;
     }
 
     /**
      * @return array{url: string, host: string, ips: list<string>, pinned: bool}
+     *
      * @throws SsrfException
      */
     public function validate(string $url): array
@@ -54,7 +55,7 @@ readonly class SsrfValidator
             throw new InvalidUrlException(sprintf('URL does not contain a hostname: "%s"', $url));
         }
 
-        if (!$opts->sendCredentials && $uri->getUserInfo() !== '') {
+        if (! $opts->sendCredentials && $uri->getUserInfo() !== '') {
             throw new InvalidUrlException('Credentials in URLs are not permitted.');
         }
 
@@ -80,6 +81,7 @@ readonly class SsrfValidator
     {
         try {
             $this->validate($url);
+
             return true;
         } catch (SsrfException) {
             return false;
@@ -93,7 +95,7 @@ readonly class SsrfValidator
 
     private function validateScheme(string $scheme, SsrfOptions $opts): void
     {
-        if ($opts->whitelistSchemes !== [] && !in_array($scheme, $opts->whitelistSchemes, true)) {
+        if ($opts->whitelistSchemes !== [] && ! in_array($scheme, $opts->whitelistSchemes, true)) {
             throw new InvalidSchemeException(
                 sprintf('Scheme "%s" is not in the whitelist: %s', $scheme, implode(', ', $opts->whitelistSchemes))
             );
@@ -106,7 +108,7 @@ readonly class SsrfValidator
 
     private function validatePort(int $port, SsrfOptions $opts): void
     {
-        if ($opts->whitelistPorts !== [] && !in_array($port, $opts->whitelistPorts, true)) {
+        if ($opts->whitelistPorts !== [] && ! in_array($port, $opts->whitelistPorts, true)) {
             throw new InvalidPortException(
                 sprintf('Port "%d" is not in the whitelist: %s', $port, implode(', ', $opts->whitelistPorts))
             );
@@ -122,7 +124,7 @@ readonly class SsrfValidator
     {
         $host = strtolower(trim($host, '[]'));
 
-        if ($opts->whitelistDomains !== [] && !$this->matchesList($host, $opts->whitelistDomains)) {
+        if ($opts->whitelistDomains !== [] && ! $this->matchesList($host, $opts->whitelistDomains)) {
             throw new InvalidDomainException(sprintf('Host "%s" is not in the domain whitelist.', $host));
         }
 
@@ -150,11 +152,11 @@ readonly class SsrfValidator
 
         if ($opts->whitelistIps !== []) {
             $whitelist = collect($opts->whitelistIps);
-            $allowed = $ips->contains(fn (string $ip) =>
-                $whitelist->contains(fn (string $range) => $this->cidrMatch($ip, $range))
+            $allowed = $ips->contains(
+                fn (string $ip) => $whitelist->contains(fn (string $range) => $this->cidrMatch($ip, $range))
             );
 
-            if (!$allowed) {
+            if (! $allowed) {
                 throw new InvalidIpException(
                     sprintf('Host "%s" resolves to [%s] which is not in the IP whitelist.', $host, $ips->implode(', '))
                 );
@@ -180,7 +182,8 @@ readonly class SsrfValidator
      * configuration error and throws rather than silently failing to match —
      * a typo in a blacklist must never quietly allow a host through.
      *
-     * @param list<string> $patterns
+     * @param  list<string>  $patterns
+     *
      * @throws InvalidDomainException
      */
     private function matchesList(string $host, array $patterns): bool
@@ -221,7 +224,7 @@ readonly class SsrfValidator
 
     private function cidrMatch(string $ip, string $cidr): bool
     {
-        if (!str_contains($cidr, '/')) {
+        if (! str_contains($cidr, '/')) {
             return $ip === $cidr;
         }
 
@@ -241,7 +244,7 @@ readonly class SsrfValidator
 
     private function ipv4Match(string $ip, string $subnet, int $prefixLen): bool
     {
-        $ipLong     = ip2long($ip);
+        $ipLong = ip2long($ip);
         $subnetLong = ip2long($subnet);
 
         if ($ipLong === false || $subnetLong === false) {
@@ -255,7 +258,7 @@ readonly class SsrfValidator
 
     private function ipv6Match(string $ip, string $subnet, int $prefixLen): bool
     {
-        $ipBin     = @inet_pton($ip);
+        $ipBin = @inet_pton($ip);
         $subnetBin = @inet_pton($subnet);
 
         if ($ipBin === false || $subnetBin === false) {
@@ -264,7 +267,7 @@ readonly class SsrfValidator
 
         $mask = str_repeat("\xff", intdiv($prefixLen, 8));
         if ($prefixLen % 8 > 0) {
-            $mask .= chr(0xff << (8 - $prefixLen % 8) & 0xff);
+            $mask .= chr(0xFF << (8 - $prefixLen % 8) & 0xFF);
         }
         $mask = str_pad($mask, 16, "\x00");
 

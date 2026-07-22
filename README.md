@@ -192,6 +192,13 @@ Domain entries support regex syntax, matched case-insensitively:
 ],
 ```
 
+> **Escape your dots.** Entries are regular expressions, so an unescaped `.`
+> matches any character — `api.example.com` would also match `apiXexample.com`.
+> Always write `api\.example\.com`.
+
+A malformed pattern throws `InvalidDomainException` rather than silently failing
+to match, so a typo in a blacklist can never quietly allow a host through.
+
 ### IP ranges
 
 IP entries support CIDR notation for both IPv4 and IPv6:

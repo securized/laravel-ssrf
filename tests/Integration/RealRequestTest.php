@@ -15,18 +15,17 @@ use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\HandlerStack;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
-use Securized\Ssrf\SsrfValidator;
 
 const SERVER_HOST = '127.0.0.1';
 const SERVER_PORT = 18923;
-const SERVER_URL  = 'http://' . SERVER_HOST . ':' . SERVER_PORT;
+const SERVER_URL = 'http://'.SERVER_HOST.':'.SERVER_PORT;
 
 // ---------------------------------------------------------------------------
 // Lifecycle: start/stop the built-in PHP server
 // ---------------------------------------------------------------------------
 
 beforeAll(function (): void {
-    $serverScript = __DIR__ . '/server.php';
+    $serverScript = __DIR__.'/server.php';
     $cmd = sprintf(
         'php -S %s:%d %s > /dev/null 2>&1 & echo $!',
         SERVER_HOST, SERVER_PORT, escapeshellarg($serverScript)
@@ -71,6 +70,7 @@ function protectedClient(?SsrfOptions $opts = null): Client
 {
     $stack = HandlerStack::create();
     $stack->push(SsrfProtectionMiddleware::make($opts));
+
     return new Client(['handler' => $stack, 'timeout' => 5]);
 }
 
@@ -79,8 +79,8 @@ function protectedClient(?SsrfOptions $opts = null): Client
 // ---------------------------------------------------------------------------
 
 test('sanity: unprotected client reaches local server', function (): void {
-    $response = unprotectedClient()->get(SERVER_URL . '/ping');
-    $body     = json_decode($response->getBody()->getContents(), true);
+    $response = unprotectedClient()->get(SERVER_URL.'/ping');
+    $body = json_decode($response->getBody()->getContents(), true);
 
     expect($response->getStatusCode())->toBe(200);
     expect($body['reached'])->toBeTrue();
@@ -93,13 +93,13 @@ test('sanity: unprotected client reaches local server', function (): void {
 
 describe('protected client blocks loopback', function (): void {
     test('127.0.0.1 is blocked', function (): void {
-        expect(fn () => protectedClient()->get(SERVER_URL . '/'))
+        expect(fn () => protectedClient()->get(SERVER_URL.'/'))
             ->toThrow(RequestException::class);
     });
 
     test('127.0.0.1 with explicit port is blocked', function (): void {
-        $opts = (new SsrfOptions())->withWhitelistPorts([80, 443, SERVER_PORT]);
-        expect(fn () => protectedClient($opts)->get(SERVER_URL . '/'))
+        $opts = (new SsrfOptions)->withWhitelistPorts([80, 443, SERVER_PORT]);
+        expect(fn () => protectedClient($opts)->get(SERVER_URL.'/'))
             ->toThrow(RequestException::class);
     });
 });
@@ -110,20 +110,20 @@ describe('protected client blocks loopback', function (): void {
 
 describe('shorthand IP bypasses are blocked', function (): void {
     test('127.1 resolves to 127.0.0.1 and is blocked', function (): void {
-        $opts = (new SsrfOptions())->withWhitelistPorts([80, 443, SERVER_PORT]);
-        expect(fn () => protectedClient($opts)->get('http://127.1:' . SERVER_PORT . '/'))
+        $opts = (new SsrfOptions)->withWhitelistPorts([80, 443, SERVER_PORT]);
+        expect(fn () => protectedClient($opts)->get('http://127.1:'.SERVER_PORT.'/'))
             ->toThrow(RequestException::class);
     });
 
     test('127.0.1 resolves to 127.0.0.1 and is blocked', function (): void {
-        $opts = (new SsrfOptions())->withWhitelistPorts([80, 443, SERVER_PORT]);
-        expect(fn () => protectedClient($opts)->get('http://127.0.1:' . SERVER_PORT . '/'))
+        $opts = (new SsrfOptions)->withWhitelistPorts([80, 443, SERVER_PORT]);
+        expect(fn () => protectedClient($opts)->get('http://127.0.1:'.SERVER_PORT.'/'))
             ->toThrow(RequestException::class);
     });
 
     test('0 resolves to 0.0.0.0 and is blocked', function (): void {
-        $opts = (new SsrfOptions())->withWhitelistPorts([80, 443, SERVER_PORT]);
-        expect(fn () => protectedClient($opts)->get('http://0:' . SERVER_PORT . '/'))
+        $opts = (new SsrfOptions)->withWhitelistPorts([80, 443, SERVER_PORT]);
+        expect(fn () => protectedClient($opts)->get('http://0:'.SERVER_PORT.'/'))
             ->toThrow(RequestException::class);
     });
 });
@@ -135,15 +135,15 @@ describe('shorthand IP bypasses are blocked', function (): void {
 describe('DNS pinning with real request', function (): void {
     test('pinned request replaces host but preserves Host header', function (): void {
         // Use the IP directly with pin_dns — should work and reach server
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withPinDns()
             ->withBlacklistIps([])    // allow loopback for this test
             ->withWhitelistPorts([80, 443, SERVER_PORT])
             ->withWhitelistDomains([]);
 
-        $client   = protectedClient($opts);
-        $response = $client->get(SERVER_URL . '/pinned');
-        $body     = json_decode($response->getBody()->getContents(), true);
+        $client = protectedClient($opts);
+        $response = $client->get(SERVER_URL.'/pinned');
+        $body = json_decode($response->getBody()->getContents(), true);
 
         expect($response->getStatusCode())->toBe(200);
         expect($body['reached'])->toBeTrue();
@@ -162,7 +162,7 @@ describe('scheme blocking prevents real connections', function (): void {
     });
 
     test('gopher:// is blocked before any connection attempt', function (): void {
-        expect(fn () => protectedClient()->get('gopher://' . SERVER_HOST . ':' . SERVER_PORT . '/'))
+        expect(fn () => protectedClient()->get('gopher://'.SERVER_HOST.':'.SERVER_PORT.'/'))
             ->toThrow(RequestException::class);
     });
 });
@@ -174,18 +174,18 @@ describe('scheme blocking prevents real connections', function (): void {
 describe('port blocking prevents real connections', function (): void {
     test('non-whitelisted port is blocked even when server is listening', function (): void {
         // Default whitelist is [80, 443, 8080] — our server port is not in it
-        expect(fn () => protectedClient()->get(SERVER_URL . '/'))
+        expect(fn () => protectedClient()->get(SERVER_URL.'/'))
             ->toThrow(RequestException::class);
     });
 
     test('whitelisted port allows connection (when IP is also allowed)', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistPorts([80, 443, SERVER_PORT])
             ->withBlacklistIps([])    // allow loopback for this test
             ->withWhitelistDomains([]);
 
-        $response = protectedClient($opts)->get(SERVER_URL . '/allowed');
-        $body     = json_decode($response->getBody()->getContents(), true);
+        $response = protectedClient($opts)->get(SERVER_URL.'/allowed');
+        $body = json_decode($response->getBody()->getContents(), true);
 
         expect($body['reached'])->toBeTrue();
     });

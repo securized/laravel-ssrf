@@ -7,7 +7,6 @@ use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
-use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
@@ -27,7 +26,7 @@ function makeClient(SsrfOptions $opts, array &$history = [], array $responses = 
         $responses = [new Response(200)];
     }
 
-    $mock  = new MockHandler($responses);
+    $mock = new MockHandler($responses);
     $stack = HandlerStack::create($mock);
     $stack->push(Middleware::history($history));
     $stack->push(
@@ -43,37 +42,37 @@ function makeClient(SsrfOptions $opts, array &$history = [], array $responses = 
 
 describe('SsrfProtectionMiddleware — blocking', function (): void {
     test('blocks request to localhost IP (127.0.0.1)', function (): void {
-        $opts   = (new SsrfOptions())->withWhitelistDomains([]);
+        $opts = (new SsrfOptions)->withWhitelistDomains([]);
         $client = makeClient($opts);
         expect(fn () => $client->get('http://127.0.0.1/'))->toThrow(RequestException::class);
     });
 
     test('blocks request with disallowed scheme (file://)', function (): void {
-        $client = makeClient(new SsrfOptions());
+        $client = makeClient(new SsrfOptions);
         expect(fn () => $client->get('file:///etc/passwd'))->toThrow(RequestException::class);
     });
 
     test('blocks request to disallowed port', function (): void {
         // Port 22 not in default whitelist [80, 443, 8080]
-        $opts   = (new SsrfOptions())->withWhitelistDomains([]);
+        $opts = (new SsrfOptions)->withWhitelistDomains([]);
         $client = makeClient($opts);
         expect(fn () => $client->get('http://1.2.3.4:22/'))->toThrow(RequestException::class);
     });
 
     test('blocks request to RFC-1918 range (10.x.x.x)', function (): void {
-        $opts   = (new SsrfOptions())->withWhitelistDomains([]);
+        $opts = (new SsrfOptions)->withWhitelistDomains([]);
         $client = makeClient($opts);
         expect(fn () => $client->get('http://10.0.0.1/'))->toThrow(RequestException::class);
     });
 
     test('blocks cloud metadata endpoint (169.254.169.254)', function (): void {
-        $opts   = (new SsrfOptions())->withWhitelistDomains([]);
+        $opts = (new SsrfOptions)->withWhitelistDomains([]);
         $client = makeClient($opts);
         expect(fn () => $client->get('http://169.254.169.254/latest/meta-data/'))->toThrow(RequestException::class);
     });
 
     test('rejected promise wraps original SsrfException as cause', function (): void {
-        $opts   = (new SsrfOptions())->withWhitelistDomains([]);
+        $opts = (new SsrfOptions)->withWhitelistDomains([]);
         $client = makeClient($opts);
 
         try {
@@ -91,16 +90,16 @@ describe('SsrfProtectionMiddleware — blocking', function (): void {
 
 describe('SsrfProtectionMiddleware — passing', function (): void {
     test('allows request to whitelisted public IP', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistDomains([])
             ->withWhitelistSchemes([])
             ->withWhitelistPorts([])
             ->withBlacklistIps([])
             ->withWhitelistIps(['1.2.3.4']);
 
-        $history   = [];
-        $client    = makeClient($opts, $history);
-        $response  = $client->get('http://1.2.3.4/path');
+        $history = [];
+        $client = makeClient($opts, $history);
+        $response = $client->get('http://1.2.3.4/path');
 
         expect($response->getStatusCode())->toBe(200);
         expect($history)->toHaveCount(1);
@@ -113,7 +112,7 @@ describe('SsrfProtectionMiddleware — passing', function (): void {
 
 describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
     test('with pin_dns, request URI host is replaced with IP and Host header is set', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistDomains([])
             ->withWhitelistSchemes([])
             ->withWhitelistPorts([])
@@ -121,8 +120,8 @@ describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
             ->withWhitelistIps(['1.2.3.4'])
             ->withPinDns();
 
-        $history  = [];
-        $client   = makeClient($opts, $history);
+        $history = [];
+        $client = makeClient($opts, $history);
         $client->get('http://1.2.3.4/');
 
         $sentRequest = $history[0]['request'];
@@ -135,7 +134,7 @@ describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
     });
 
     test('without pin_dns, request URI is unchanged', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistDomains([])
             ->withWhitelistSchemes([])
             ->withWhitelistPorts([])
@@ -143,7 +142,7 @@ describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
             ->withWhitelistIps(['1.2.3.4']);
 
         $history = [];
-        $client  = makeClient($opts, $history);
+        $client = makeClient($opts, $history);
         $client->get('http://1.2.3.4/path?q=1');
 
         $sentRequest = $history[0]['request'];
@@ -162,11 +161,11 @@ describe('SsrfProtectionMiddleware::make()', function (): void {
     });
 
     test('make() with custom options blocks accordingly', function (): void {
-        $opts  = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistSchemes(['https']) // blocks http
             ->withWhitelistDomains([]);
 
-        $mock  = new MockHandler([new Response(200)]);
+        $mock = new MockHandler([new Response(200)]);
         $stack = HandlerStack::create($mock);
         $stack->push(SsrfProtectionMiddleware::make($opts));
         $client = new Client(['handler' => $stack]);
@@ -175,7 +174,7 @@ describe('SsrfProtectionMiddleware::make()', function (): void {
     });
 
     test('make() with null options uses defaults and blocks localhost', function (): void {
-        $mock  = new MockHandler([new Response(200)]);
+        $mock = new MockHandler([new Response(200)]);
         $stack = HandlerStack::create($mock);
         $stack->push(SsrfProtectionMiddleware::make(null));
         $client = new Client(['handler' => $stack]);
@@ -190,14 +189,14 @@ describe('SsrfProtectionMiddleware::make()', function (): void {
 
 describe('SsrfProtectionMiddleware — validator options', function (): void {
     test('middleware blocks based on validator options', function (): void {
-        $opts = (new SsrfOptions())
+        $opts = (new SsrfOptions)
             ->withWhitelistSchemes(['https'])
             ->withWhitelistDomains([])
             ->withWhitelistPorts([])
             ->withBlacklistIps([]);
 
         $middleware = new SsrfProtectionMiddleware(new SsrfValidator($opts));
-        $stack      = HandlerStack::create(new MockHandler([new Response(200)]));
+        $stack = HandlerStack::create(new MockHandler([new Response(200)]));
         $stack->push($middleware->handler());
 
         expect(fn () => (new Client(['handler' => $stack]))->get('http://1.2.3.4/'))

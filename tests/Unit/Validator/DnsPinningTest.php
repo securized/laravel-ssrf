@@ -16,7 +16,7 @@ use Securized\Ssrf\SsrfValidator;
 
 function pinningOpts(bool $pin = true): SsrfOptions
 {
-    return (new SsrfOptions())
+    return (new SsrfOptions)
         ->withWhitelistDomains([])
         ->withWhitelistSchemes(['http', 'https'])
         ->withWhitelistPorts([])
@@ -25,8 +25,8 @@ function pinningOpts(bool $pin = true): SsrfOptions
 }
 
 test('pin_dns replaces host with resolved IP in URL', function (): void {
-    $dns    = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
-    $v      = new SsrfValidator(pinningOpts(), $dns);
+    $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
+    $v = new SsrfValidator(pinningOpts(), $dns);
     $result = $v->validate('http://example.com/path');
 
     expect($result['url'])->toContain('93.184.216.34');
@@ -35,29 +35,29 @@ test('pin_dns replaces host with resolved IP in URL', function (): void {
 });
 
 test('pin_dns preserves original host in host key', function (): void {
-    $dns    = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+    $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
     $result = (new SsrfValidator(pinningOpts(), $dns))->validate('http://example.com/');
 
     expect($result['host'])->toBe('example.com');
 });
 
 test('without pin_dns URL host is unchanged', function (): void {
-    $dns    = (new FakeDnsResolver())->addRecord('example.com', '93.184.216.34');
+    $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
     $result = (new SsrfValidator(pinningOpts(false), $dns))->validate('http://example.com/path?q=1#frag');
 
     expect($result['url'])->toBe('http://example.com/path?q=1#frag');
 });
 
 test('pin_dns with IP literal is a no-op', function (): void {
-    $v      = new SsrfValidator(pinningOpts());
+    $v = new SsrfValidator(pinningOpts());
     $result = $v->validate('http://1.2.3.4/');
 
     expect($result['url'])->toBe('http://1.2.3.4/');
 });
 
 test('E2 rebinding scenario: first resolve gets safe IP, pinning locks it in', function (): void {
-    $dns = (new FakeDnsResolver())->addRecord('rebind.attacker.com', '93.184.216.34');
-    $v   = new SsrfValidator(pinningOpts(), $dns);
+    $dns = (new FakeDnsResolver)->addRecord('rebind.attacker.com', '93.184.216.34');
+    $v = new SsrfValidator(pinningOpts(), $dns);
 
     $result = $v->validate('http://rebind.attacker.com/');
     // The URL now points to the safe IP, not the hostname that could rebind

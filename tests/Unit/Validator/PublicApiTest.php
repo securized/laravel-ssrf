@@ -12,7 +12,7 @@ use Securized\Ssrf\SsrfValidator;
 
 function permissiveOpts(): SsrfOptions
 {
-    return (new SsrfOptions())
+    return (new SsrfOptions)
         ->withWhitelistDomains([])
         ->withWhitelistSchemes(['http', 'https'])
         ->withWhitelistPorts([])
@@ -21,25 +21,19 @@ function permissiveOpts(): SsrfOptions
 }
 
 describe('isSafe()', function (): void {
-    test('returns false for blocked URL', fn () =>
-        expect((new SsrfValidator(new SsrfOptions()))->isSafe('http://127.0.0.1/'))->toBeFalse());
+    test('returns false for blocked URL', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://127.0.0.1/'))->toBeFalse());
 
-    test('returns false for file:// scheme', fn () =>
-        expect((new SsrfValidator(new SsrfOptions()))->isSafe('file:///etc/passwd'))->toBeFalse());
+    test('returns false for file:// scheme', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('file:///etc/passwd'))->toBeFalse());
 
-    test('returns false for empty URL', fn () =>
-        expect((new SsrfValidator(new SsrfOptions()))->isSafe(''))->toBeFalse());
+    test('returns false for empty URL', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe(''))->toBeFalse());
 
-    test('returns true for safe URL', fn () =>
-        expect((new SsrfValidator(permissiveOpts()))->isSafe('http://1.2.3.4/'))->toBeTrue());
+    test('returns true for safe URL', fn () => expect((new SsrfValidator(permissiveOpts()))->isSafe('http://1.2.3.4/'))->toBeTrue());
 });
 
 describe('safeUrl()', function (): void {
-    test('returns validated URL', fn () =>
-        expect((new SsrfValidator(permissiveOpts()))->safeUrl('http://1.2.3.4/path'))->toBe('http://1.2.3.4/path'));
+    test('returns validated URL', fn () => expect((new SsrfValidator(permissiveOpts()))->safeUrl('http://1.2.3.4/path'))->toBe('http://1.2.3.4/path'));
 
-    test('throws on blocked URL', fn () =>
-        expect(fn () => (new SsrfValidator(new SsrfOptions()))->safeUrl('http://127.0.0.1/'))->toThrow(SsrfException::class));
+    test('throws on blocked URL', fn () => expect(fn () => (new SsrfValidator(new SsrfOptions))->safeUrl('http://127.0.0.1/'))->toThrow(SsrfException::class));
 });
 
 describe('validate() return structure', function (): void {
@@ -52,18 +46,13 @@ describe('validate() return structure', function (): void {
 });
 
 describe('URL reconstruction', function (): void {
-    test('path preserved', fn () =>
-        expect((new SsrfValidator(permissiveOpts()))->validate('http://1.2.3.4/some/path')['url'])->toBe('http://1.2.3.4/some/path'));
+    test('path preserved', fn () => expect((new SsrfValidator(permissiveOpts()))->validate('http://1.2.3.4/some/path')['url'])->toBe('http://1.2.3.4/some/path'));
 
-    test('query string preserved', fn () =>
-        expect((new SsrfValidator(permissiveOpts()))->validate('http://1.2.3.4/path?foo=bar&baz=qux')['url'])->toBe('http://1.2.3.4/path?foo=bar&baz=qux'));
+    test('query string preserved', fn () => expect((new SsrfValidator(permissiveOpts()))->validate('http://1.2.3.4/path?foo=bar&baz=qux')['url'])->toBe('http://1.2.3.4/path?foo=bar&baz=qux'));
 
-    test('fragment preserved', fn () =>
-        expect((new SsrfValidator(permissiveOpts()))->validate('http://1.2.3.4/path#section')['url'])->toBe('http://1.2.3.4/path#section'));
+    test('fragment preserved', fn () => expect((new SsrfValidator(permissiveOpts()))->validate('http://1.2.3.4/path#section')['url'])->toBe('http://1.2.3.4/path#section'));
 
-    test('port preserved', fn () =>
-        expect((new SsrfValidator(permissiveOpts()->withWhitelistPorts([8080])))->validate('http://1.2.3.4:8080/')['url'])->toBe('http://1.2.3.4:8080/'));
+    test('port preserved', fn () => expect((new SsrfValidator(permissiveOpts()->withWhitelistPorts([8080])))->validate('http://1.2.3.4:8080/')['url'])->toBe('http://1.2.3.4:8080/'));
 
-    test('credentials preserved when allowed', fn () =>
-        expect((new SsrfValidator(permissiveOpts()->withSendCredentials()))->validate('http://user:secret@1.2.3.4/')['url'])->toBe('http://user:secret@1.2.3.4/'));
+    test('credentials preserved when allowed', fn () => expect((new SsrfValidator(permissiveOpts()->withSendCredentials()))->validate('http://user:secret@1.2.3.4/')['url'])->toBe('http://user:secret@1.2.3.4/'));
 });
