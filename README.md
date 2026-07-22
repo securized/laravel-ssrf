@@ -1,13 +1,29 @@
 # Laravel SSRF Prevention
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/securized/laravel-ssrf.svg?style=flat-square)](https://packagist.org/packages/securized/laravel-ssrf)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/securized/laravel-ssrf/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/securized/laravel-ssrf/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/securized/laravel-ssrf/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/securized/laravel-ssrf/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
+[![Tests](https://img.shields.io/github/actions/workflow/status/securized/laravel-ssrf/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/securized/laravel-ssrf/actions/workflows/tests.yml)
+[![Quality](https://img.shields.io/github/actions/workflow/status/securized/laravel-ssrf/quality.yml?branch=main&label=quality&style=flat-square)](https://github.com/securized/laravel-ssrf/actions/workflows/quality.yml)
 [![Total Downloads](https://img.shields.io/packagist/dt/securized/laravel-ssrf.svg?style=flat-square)](https://packagist.org/packages/securized/laravel-ssrf)
 
 SSRF (Server-Side Request Forgery) prevention for Laravel. Protect `Http::`, raw Guzzle, and user-supplied URLs from being weaponised to reach internal infrastructure, cloud metadata endpoints, or private networks.
 
-Server-side requests are a common and useful pattern — webhooks, link previews, external API calls — but allowing user-controlled URLs without validation lets an attacker redirect your server to `http://169.254.169.254/` (AWS metadata), internal services, or arbitrary internal hosts. This package validates every URL before the request leaves your application.
+## The problem
+
+Fetching a user-supplied URL is a normal thing to do — webhooks, link previews, avatar imports, "import from URL" buttons. The code usually looks like this:
+
+```php
+$response = Http::get($request->input('webhook_url'));
+```
+
+Your server will happily fetch whatever it's pointed at, from a network position your users don't have. So an attacker submits:
+
+```
+http://169.254.169.254/latest/meta-data/iam/security-credentials/
+```
+
+On unpatched EC2 (IMDSv1), that returns your instance's IAM credentials. The same trick reaches `http://localhost:6379` (Redis), your internal admin panel, or a Kubernetes API on a private subnet — anything your server can route to but the internet can't.
+
+Blocking this properly is harder than it looks. `127.0.0.1` is also `http://0177.0.0.1/`, `http://2130706433/`, and `http://[::1]/`. A hostname that resolves to a public IP when you check it can resolve to `127.0.0.1` a second later when Guzzle connects. This package handles those cases and validates every URL before the request leaves your application.
 
 ## Installation
 
@@ -118,7 +134,7 @@ The validation error message deliberately does not expose internal network detai
 ```php
 use Securized\Ssrf\Facades\Ssrf;
 
-// Returns array{url: string, host: string, ips: list<string>}
+// Returns array{url: string, host: string, ips: list<string>, pinned: bool}
 // Throws SsrfException on failure.
 $result = Ssrf::validate($url);
 
@@ -245,6 +261,15 @@ Http::ssrf(SsrfOptions::fromConfig(config('ssrf'))->withPinDns())->get($url);
 
 Note: DNS pinning may affect SSL certificate validation in some configurations.
 
+## What this does not protect against
+
+Worth knowing before you rely on it:
+
+- **Second-order requests are your responsibility.** Redirects *are* covered — Guzzle re-enters the middleware for each hop, so a `302` to `http://169.254.169.254/` is blocked (there are tests for this). But if you fetch a page, parse a URL out of the body, and request it yourself, that second request needs its own validation.
+- **TOCTOU without DNS pinning.** With `pin_dns` disabled, the hostname is resolved once for validation and again by Guzzle when it connects. An attacker controlling the DNS response can return a public IP for the first lookup and a private one for the second. Enable `pin_dns` to close this.
+- **Blocked hosts are still distinguishable.** Timing and error differences let an attacker infer which internal hosts exist. This is a port scan with a very narrow oracle, not data exfiltration, but it is not nothing.
+- **The blacklist covers documented ranges, not your network.** If your internal services live on public IPs, add them to the blacklist yourself — nothing here can infer that.
+
 ## Exception Hierarchy
 
 All SSRF exceptions extend `\Securized\Ssrf\Exceptions\SsrfException` (itself a `RuntimeException`):
@@ -284,17 +309,9 @@ composer test
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
-
 ## Security Vulnerabilities
 
-Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
-
-## Credits
-
-- [All Contributors](../../contributors)
+If you find a security issue in this package, please email `root@securized.dev` rather than opening a public issue.
 
 ## License
 
