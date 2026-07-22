@@ -181,23 +181,21 @@ An **empty whitelist** for a type means "allow all" (subject to the blacklist). 
 
 ### Domain patterns
 
-Domain entries support regex syntax, matched case-insensitively:
+Domain entries are literal hostnames with `*` as a wildcard, matched
+case-insensitively:
 
 ```php
 'whitelist' => [
     'domains' => [
-        'api\.example\.com',      // exact domain
-        '(.*)\.trusted\.com',     // any subdomain
+        'api.example.com',      // exact host
+        '*.trusted.com',        // any subdomain (not the bare apex)
     ],
 ],
 ```
 
-> **Escape your dots.** Entries are regular expressions, so an unescaped `.`
-> matches any character — `api.example.com` would also match `apiXexample.com`.
-> Always write `api\.example\.com`.
-
-A malformed pattern throws `InvalidDomainException` rather than silently failing
-to match, so a typo in a blacklist can never quietly allow a host through.
+Dots are literal, so a pattern never matches more hosts than it appears to —
+`api.example.com` matches that host and nothing else. Regex syntax is not
+supported; characters like `.` and `(` are matched literally.
 
 ### IP ranges
 

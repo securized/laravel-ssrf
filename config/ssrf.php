@@ -56,7 +56,8 @@ return [
         // Ports that outgoing requests may target.
         'ports' => [80, 443, 8080],
 
-        // Domains/hostnames that are explicitly allowed (supports regex patterns).
+        // Hostnames that are explicitly allowed. Dots are literal and "*" is a
+        // wildcard, e.g. 'api.example.com' or '*.example.com'.
         'domains' => [],
 
         // URL schemes that are permitted.

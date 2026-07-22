@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Securized\Ssrf;
 
 use GuzzleHttp\Psr7\Uri;
+use Illuminate\Support\Str;
 use Securized\Ssrf\Dns\DnsResolver;
 use Securized\Ssrf\Dns\NativeDnsResolver;
 use Securized\Ssrf\Exceptions\InvalidDomainException;
@@ -177,43 +178,18 @@ readonly class SsrfValidator
     /**
      * Match a host against a list of domain patterns.
      *
-     * Patterns are treated as regular expressions (anchored, case-insensitive)
-     * so that entries like `.*\.example\.com` work. A malformed pattern is a
-     * configuration error and throws rather than silently failing to match —
-     * a typo in a blacklist must never quietly allow a host through.
+     * Patterns are literal hostnames with `*` as a wildcard — `api.example.com`
+     * matches only that host, and `*.example.com` matches any subdomain. Dots
+     * are literal, so a pattern can never match more than it appears to.
+     *
+     * The host is already lowercased by validateHost(); patterns are lowercased
+     * here so matching is effectively case-insensitive.
      *
      * @param  list<string>  $patterns
-     *
-     * @throws InvalidDomainException
      */
     private function matchesList(string $host, array $patterns): bool
     {
-        return collect($patterns)->contains(function (string $pattern) use ($host): bool {
-            $regex = sprintf('/^%s$/i', $pattern);
-            $error = null;
-
-            set_error_handler(static function (int $_, string $message) use (&$error): bool {
-                $error = $message;
-
-                return true;
-            });
-
-            try {
-                $matched = preg_match($regex, $host);
-            } finally {
-                restore_error_handler();
-            }
-
-            if ($matched === false) {
-                throw new InvalidDomainException(sprintf(
-                    'Domain pattern "%s" is not a valid regular expression%s',
-                    $pattern,
-                    $error === null ? '.' : sprintf(': %s', str_replace('preg_match(): ', '', $error)),
-                ));
-            }
-
-            return $matched === 1;
-        });
+        return Str::is(array_map(strtolower(...), $patterns), $host);
     }
 
     /** Wrap IPv6 addresses in brackets so they are valid inside a URL authority. */

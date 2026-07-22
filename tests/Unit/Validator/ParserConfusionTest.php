@@ -44,7 +44,7 @@ describe('credential injection', function (): void {
 
     test('@ used for host confusion: http://trusted.com@evil.com/', function (): void {
         // parse_url sees trusted.com as userinfo, evil.com as host
-        $opts = (new SsrfOptions)->withWhitelistDomains(['trusted\.com']);
+        $opts = (new SsrfOptions)->withWhitelistDomains(['trusted.com']);
         expect(fn () => (new SsrfValidator($opts))->validate('http://trusted.com@evil.com/'))
             ->toThrow(InvalidUrlException::class); // blocked by credential check
     });
@@ -52,7 +52,7 @@ describe('credential injection', function (): void {
 
 describe('LibreX case study — query string injection', function (): void {
     test('evil.com:22?example.org is parsed as evil.com, not example.org', function (): void {
-        $opts = (new SsrfOptions)->withWhitelistDomains(['example\.org'])->withWhitelistPorts([]);
+        $opts = (new SsrfOptions)->withWhitelistDomains(['example.org'])->withWhitelistPorts([]);
         expect(fn () => (new SsrfValidator($opts))->validate('http://evil.com:22?example.org'))
             ->toThrow(InvalidDomainException::class);
     });
@@ -61,7 +61,7 @@ describe('LibreX case study — query string injection', function (): void {
 describe('fragment injection', function (): void {
     test('fragment does not affect host extraction', function (): void {
         $opts = (new SsrfOptions)
-            ->withWhitelistDomains(['evil\.com'])
+            ->withWhitelistDomains(['evil.com'])
             ->withBlacklistIps(['0.0.0.0/0'])
             ->withWhitelistPorts([]);
 

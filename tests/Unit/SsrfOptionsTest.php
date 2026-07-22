@@ -76,13 +76,13 @@ describe('SsrfOptions::fromConfig()', function (): void {
             'whitelist' => [
                 'ips' => ['1.2.3.4'],
                 'ports' => [443],
-                'domains' => ['example\.com'],
+                'domains' => ['example.com'],
                 'schemes' => ['https'],
             ],
             'blacklist' => [
                 'ips' => ['10.0.0.0/8'],
                 'ports' => [22],
-                'domains' => ['evil\.com'],
+                'domains' => ['evil.com'],
                 'schemes' => ['gopher'],
             ],
         ]);
@@ -91,11 +91,11 @@ describe('SsrfOptions::fromConfig()', function (): void {
         expect($opts->pinDns)->toBeTrue();
         expect($opts->whitelistIps)->toBe(['1.2.3.4']);
         expect($opts->whitelistPorts)->toBe([443]);
-        expect($opts->whitelistDomains)->toBe(['example\.com']);
+        expect($opts->whitelistDomains)->toBe(['example.com']);
         expect($opts->whitelistSchemes)->toBe(['https']);
         expect($opts->blacklistIps)->toBe(['10.0.0.0/8']);
         expect($opts->blacklistPorts)->toBe([22]);
-        expect($opts->blacklistDomains)->toBe(['evil\.com']);
+        expect($opts->blacklistDomains)->toBe(['evil.com']);
         expect($opts->blacklistSchemes)->toBe(['gopher']);
     });
 
@@ -173,10 +173,10 @@ describe('wither methods are immutable', function (): void {
     });
 
     test('withWhitelistDomains replaces the list', function (): void {
-        $a = (new SsrfOptions)->withWhitelistDomains(['a\.com']);
-        $b = $a->withWhitelistDomains(['b\.com']);
-        expect($a->whitelistDomains)->toBe(['a\.com']);
-        expect($b->whitelistDomains)->toBe(['b\.com']);
+        $a = (new SsrfOptions)->withWhitelistDomains(['a.com']);
+        $b = $a->withWhitelistDomains(['b.com']);
+        expect($a->whitelistDomains)->toBe(['a.com']);
+        expect($b->whitelistDomains)->toBe(['b.com']);
     });
 
     test('withWhitelistSchemes replaces the list', function (): void {
@@ -201,10 +201,10 @@ describe('wither methods are immutable', function (): void {
     });
 
     test('withBlacklistDomains replaces the list', function (): void {
-        $a = (new SsrfOptions)->withBlacklistDomains(['evil\.com']);
-        $b = $a->withBlacklistDomains(['bad\.net']);
-        expect($a->blacklistDomains)->toBe(['evil\.com']);
-        expect($b->blacklistDomains)->toBe(['bad\.net']);
+        $a = (new SsrfOptions)->withBlacklistDomains(['evil.com']);
+        $b = $a->withBlacklistDomains(['bad.net']);
+        expect($a->blacklistDomains)->toBe(['evil.com']);
+        expect($b->blacklistDomains)->toBe(['bad.net']);
     });
 
     test('withBlacklistSchemes replaces the list', function (): void {
@@ -241,13 +241,13 @@ describe('additive wither helpers', function (): void {
 
     test('addBlacklistDomain appends without duplication', function (): void {
         $opts = (new SsrfOptions)
-            ->withBlacklistDomains(['evil\.com'])
-            ->addBlacklistDomain('bad\.net')
-            ->addBlacklistDomain('evil\.com'); // duplicate
+            ->withBlacklistDomains(['evil.com'])
+            ->addBlacklistDomain('bad.net')
+            ->addBlacklistDomain('evil.com'); // duplicate
 
-        expect($opts->blacklistDomains)->toContain('evil\.com');
-        expect($opts->blacklistDomains)->toContain('bad\.net');
-        expect(count(array_filter($opts->blacklistDomains, fn ($v) => $v === 'evil\.com')))->toBe(1);
+        expect($opts->blacklistDomains)->toContain('evil.com');
+        expect($opts->blacklistDomains)->toContain('bad.net');
+        expect(count(array_filter($opts->blacklistDomains, fn ($v) => $v === 'evil.com')))->toBe(1);
     });
 
     test('addWhitelistIp appends without duplication', function (): void {
@@ -263,13 +263,13 @@ describe('additive wither helpers', function (): void {
 
     test('addWhitelistDomain appends without duplication', function (): void {
         $opts = (new SsrfOptions)
-            ->withWhitelistDomains(['trusted\.com'])
-            ->addWhitelistDomain('safe\.org')
-            ->addWhitelistDomain('trusted\.com'); // duplicate
+            ->withWhitelistDomains(['trusted.com'])
+            ->addWhitelistDomain('safe.org')
+            ->addWhitelistDomain('trusted.com'); // duplicate
 
-        expect($opts->whitelistDomains)->toContain('trusted\.com');
-        expect($opts->whitelistDomains)->toContain('safe\.org');
-        expect(count(array_filter($opts->whitelistDomains, fn ($v) => $v === 'trusted\.com')))->toBe(1);
+        expect($opts->whitelistDomains)->toContain('trusted.com');
+        expect($opts->whitelistDomains)->toContain('safe.org');
+        expect(count(array_filter($opts->whitelistDomains, fn ($v) => $v === 'trusted.com')))->toBe(1);
     });
 
     test('addWhitelistIp accepts multiple variadic arguments', function (): void {
@@ -283,16 +283,16 @@ describe('additive wither helpers', function (): void {
     test('addWhitelistDomain accepts multiple variadic arguments', function (): void {
         $opts = (new SsrfOptions)
             ->withWhitelistDomains([])
-            ->addWhitelistDomain('a\.com', 'b\.com');
+            ->addWhitelistDomain('a.com', 'b.com');
 
-        expect($opts->whitelistDomains)->toBe(['a\.com', 'b\.com']);
+        expect($opts->whitelistDomains)->toBe(['a.com', 'b.com']);
     });
 
     test('addBlacklistDomain accepts multiple variadic arguments', function (): void {
         $opts = (new SsrfOptions)
             ->withBlacklistDomains([])
-            ->addBlacklistDomain('evil\.com', 'bad\.net');
+            ->addBlacklistDomain('evil.com', 'bad.net');
 
-        expect($opts->blacklistDomains)->toBe(['evil\.com', 'bad\.net']);
+        expect($opts->blacklistDomains)->toBe(['evil.com', 'bad.net']);
     });
 });

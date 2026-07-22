@@ -14,14 +14,14 @@ use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
 test('domain not in whitelist is rejected', function (): void {
-    $opts = (new SsrfOptions)->withWhitelistDomains(['trusted\.com']);
+    $opts = (new SsrfOptions)->withWhitelistDomains(['trusted.com']);
     expect(fn () => (new SsrfValidator($opts))->validate('http://evil.com/'))
         ->toThrow(InvalidDomainException::class);
 });
 
 test('domain matching whitelist regex passes', function (): void {
     $opts = (new SsrfOptions)
-        ->withWhitelistDomains(['(.*)\.example\.com'])
+        ->withWhitelistDomains(['*.example.com'])
         ->withBlacklistIps(['0.0.0.0/0'])
         ->withWhitelistPorts([]);
     $dns = (new FakeDnsResolver)->addRecord('api.example.com', '93.184.216.34');
@@ -31,19 +31,19 @@ test('domain matching whitelist regex passes', function (): void {
 });
 
 test('domain in blacklist is rejected', function (): void {
-    $opts = (new SsrfOptions)->withWhitelistDomains([])->withBlacklistDomains(['evil\.com']);
+    $opts = (new SsrfOptions)->withWhitelistDomains([])->withBlacklistDomains(['evil.com']);
     expect(fn () => (new SsrfValidator($opts))->validate('http://evil.com/'))
         ->toThrow(InvalidDomainException::class);
 });
 
 test('blacklist wins when domain matches both lists', function (): void {
-    $opts = (new SsrfOptions)->withWhitelistDomains(['evil\.com'])->withBlacklistDomains(['evil\.com']);
+    $opts = (new SsrfOptions)->withWhitelistDomains(['evil.com'])->withBlacklistDomains(['evil.com']);
     expect(fn () => (new SsrfValidator($opts))->validate('http://evil.com/'))
         ->toThrow(InvalidDomainException::class);
 });
 
 test('domain matching is case-insensitive', function (): void {
-    $opts = (new SsrfOptions)->withWhitelistDomains([])->withBlacklistDomains(['evil\.com']);
+    $opts = (new SsrfOptions)->withWhitelistDomains([])->withBlacklistDomains(['evil.com']);
     expect(fn () => (new SsrfValidator($opts))->validate('http://EVIL.COM/'))
         ->toThrow(InvalidDomainException::class);
 });
