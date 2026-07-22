@@ -309,6 +309,20 @@ composer test
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
+## Credits
+
+The threat model and much of the test suite structure come from [SSRF vs. Developers: A Study of SSRF-Defenses in PHP Applications](https://www.usenix.org/conference/usenixsecurity24/presentation/wessels) (USENIX Security '24) by Malte Wessels, Simon Koch, Giancarlo Pellegrino and Martin Johns, of TU Braunschweig and CISPA Helmholtz Center for Information Security.
+
+Their Table 2 enumerates the three ways a URL validation layer gets evaded, and this package defends against each:
+
+| Evasion | Fix | Here |
+| --- | --- | --- |
+| URL parser confusion | Well-established, hardened parser | Guzzle's PSR-7 `Uri`, plus parser differential tests |
+| DNS rebinding | IP pinning | `pin_dns` |
+| Redirects | Recheck on each redirect | Middleware runs per hop |
+
+The paper describes IP pinning as "the only reliable defense against attacks targeting local resources without unduly restricting the versatility of the SSR feature".
+
 ## Security Vulnerabilities
 
 If you find a security issue in this package, please email `root@securized.dev` rather than opening a public issue.
