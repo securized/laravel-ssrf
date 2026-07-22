@@ -9,7 +9,7 @@ SSRF (Server-Side Request Forgery) prevention for Laravel. Protect `Http::`, raw
 
 ## The problem
 
-Fetching a user-supplied URL is a normal thing to do — webhooks, link previews, avatar imports, "import from URL" buttons. The code usually looks like this:
+Fetching a user-supplied URL is a normal thing to do. Webhooks, link previews, avatar imports, "import from URL" buttons. The code usually looks like this:
 
 ```php
 $response = Http::get($request->input('webhook_url'));
@@ -21,7 +21,7 @@ Your server will happily fetch whatever it's pointed at, from a network position
 http://169.254.169.254/latest/meta-data/iam/security-credentials/
 ```
 
-On unpatched EC2 (IMDSv1), that returns your instance's IAM credentials. The same trick reaches `http://localhost:6379` (Redis), your internal admin panel, or a Kubernetes API on a private subnet — anything your server can route to but the internet can't.
+On unpatched EC2 (IMDSv1), that returns your instance's IAM credentials. The same trick reaches `http://localhost:6379` (Redis), your internal admin panel, or a Kubernetes API on a private subnet. Anything your server can route to but the internet can't.
 
 Blocking this properly is harder than it looks. `127.0.0.1` is also `http://0177.0.0.1/`, `http://2130706433/`, and `http://[::1]/`. A hostname that resolves to a public IP when you check it can resolve to `127.0.0.1` a second later when Guzzle connects. This package handles those cases and validates every URL before the request leaves your application.
 
@@ -51,14 +51,14 @@ That's it. Requests to private IPs, localhost, link-local addresses (including c
 
 ## Features
 
-- **Laravel HTTP Client macro** — `Http::ssrf()` and `Http::withSsrfProtection()`
-- **Raw Guzzle middleware** — drop into any `HandlerStack`
-- **Validation rule** — `new SsrfSafeUrl()` for form/API input validation
-- **Facade** — `Ssrf::validate($url)`, `Ssrf::isSafe($url)`, `Ssrf::safeUrl($url)`
-- **IPv4 + IPv6** — blocks private ranges for both address families
-- **DNS pinning** — prevents DNS rebinding attacks
-- **Configurable** — whitelist/blacklist for IPs, ports, domains, and schemes
-- **Immutable options** — safe in long-running processes (Octane, RoadRunner)
+- **Laravel HTTP Client macro**: `Http::ssrf()` and `Http::withSsrfProtection()`
+- **Raw Guzzle middleware**: drop into any `HandlerStack`
+- **Validation rule**: `new SsrfSafeUrl()` for form/API input validation
+- **Facade**: `Ssrf::validate($url)`, `Ssrf::isSafe($url)`, `Ssrf::safeUrl($url)`
+- **IPv4 + IPv6**: blocks private ranges for both address families
+- **DNS pinning**: prevents DNS rebinding attacks
+- **Configurable**: whitelist/blacklist for IPs, ports, domains, and schemes
+- **Immutable options**: safe in long-running processes (Octane, RoadRunner)
 
 ## Usage
 
@@ -144,7 +144,7 @@ $result = Ssrf::validate($url);
 // Throws SsrfException on failure.
 $safeUrl = Ssrf::safeUrl($url);
 
-// Returns true/false — never throws.
+// Returns true/false, never throws.
 if (!Ssrf::isSafe($url)) {
     abort(422, 'URL is not permitted.');
 }
@@ -209,7 +209,7 @@ case-insensitively:
 ],
 ```
 
-Dots are literal, so a pattern never matches more hosts than it appears to —
+Dots are literal, so a pattern never matches more hosts than it appears to.
 `api.example.com` matches that host and nothing else. Regex syntax is not
 supported; characters like `.` and `(` are matched literally.
 
@@ -245,7 +245,7 @@ Http::ssrf($options)->get($url);
 new SsrfSafeUrl($options)
 ```
 
-`SsrfOptions` is immutable — each method returns a new instance, so customising per-request never affects shared state.
+`SsrfOptions` is immutable. Each method returns a new instance, so customising per-request never affects shared state.
 
 ## DNS Pinning
 
@@ -265,10 +265,10 @@ Note: DNS pinning may affect SSL certificate validation in some configurations.
 
 Worth knowing before you rely on it:
 
-- **Second-order requests are your responsibility.** Redirects *are* covered — Guzzle re-enters the middleware for each hop, so a `302` to `http://169.254.169.254/` is blocked (there are tests for this). But if you fetch a page, parse a URL out of the body, and request it yourself, that second request needs its own validation.
+- **Second-order requests are your responsibility.** Redirects *are* covered, as Guzzle re-enters the middleware for each hop, so a `302` to `http://169.254.169.254/` is blocked (there are tests for this). But if you fetch a page, parse a URL out of the body, and request it yourself, that second request needs its own validation.
 - **TOCTOU without DNS pinning.** With `pin_dns` disabled, the hostname is resolved once for validation and again by Guzzle when it connects. An attacker controlling the DNS response can return a public IP for the first lookup and a private one for the second. Enable `pin_dns` to close this.
 - **Blocked hosts are still distinguishable.** Timing and error differences let an attacker infer which internal hosts exist. This is a port scan with a very narrow oracle, not data exfiltration, but it is not nothing.
-- **The blacklist covers documented ranges, not your network.** If your internal services live on public IPs, add them to the blacklist yourself — nothing here can infer that.
+- **The blacklist covers documented ranges, not your network.** If your internal services live on public IPs, add them to the blacklist yourself, nothing here can infer that.
 
 ## Exception Hierarchy
 
@@ -276,11 +276,11 @@ All SSRF exceptions extend `\Securized\Ssrf\Exceptions\SsrfException` (itself a 
 
 ```
 SsrfException
-└── InvalidUrlException      — URL cannot be parsed, is empty, or contains credentials
-    ├── InvalidSchemeException  — scheme not permitted (e.g. file://, gopher://)
-    ├── InvalidPortException    — port not permitted
-    ├── InvalidDomainException  — hostname not permitted or does not resolve
-    └── InvalidIpException      — resolved IP matches a blacklisted range
+└── InvalidUrlException      - URL cannot be parsed, is empty, or contains credentials
+    ├── InvalidSchemeException  - scheme not permitted (e.g. file://, gopher://)
+    ├── InvalidPortException    - port not permitted
+    ├── InvalidDomainException  - hostname not permitted or does not resolve
+    └── InvalidIpException      - resolved IP matches a blacklisted range
 ```
 
 Catch `SsrfException` to handle any SSRF failure, or catch specific subclasses for fine-grained handling:
