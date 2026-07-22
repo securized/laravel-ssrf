@@ -1,6 +1,6 @@
 {
     "name": "securized/laravel-ssrf",
-    "description": "SSRF prevention for Laravel — protect Http::, Guzzle, and validate URLs against server-side request forgery.",
+    "description": "SSRF prevention for Laravel. Protect Http::, Guzzle, and validate user-supplied URLs against server-side request forgery.",
     "keywords": [
         "securized",
         "laravel",
