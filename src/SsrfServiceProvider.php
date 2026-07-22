@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Securized\Ssrf;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Spatie\LaravelPackageTools\Package;
@@ -28,14 +29,14 @@ class SsrfServiceProvider extends PackageServiceProvider
     public function packageBooted(): void
     {
         Http::macro('withSsrfProtection', function (?SsrfOptions $options = null) {
-            /** @var \Illuminate\Http\Client\PendingRequest $this */
+            /** @var PendingRequest $this */
             $validator = $options ? new SsrfValidator($options) : app(SsrfValidator::class);
 
             return $this->withMiddleware((new SsrfProtectionMiddleware($validator))->handler());
         });
 
         Http::macro('ssrf', function (?SsrfOptions $options = null) {
-            /** @var \Illuminate\Http\Client\PendingRequest $this */
+            /** @var PendingRequest $this */
             // @phpstan-ignore-next-line method.notFound (registered above via Http::macro)
             return $this->withSsrfProtection($options);
         });

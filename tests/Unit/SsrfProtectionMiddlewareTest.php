@@ -8,6 +8,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use Securized\Ssrf\Exceptions\SsrfException;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
@@ -79,7 +80,7 @@ describe('SsrfProtectionMiddleware — blocking', function (): void {
             $client->get('http://127.0.0.1/');
             expect(false)->toBeTrue('Should have thrown');
         } catch (RequestException $e) {
-            expect($e->getPrevious())->toBeInstanceOf(\Securized\Ssrf\Exceptions\SsrfException::class);
+            expect($e->getPrevious())->toBeInstanceOf(SsrfException::class);
         }
     });
 });

@@ -1,5 +1,6 @@
 <?php
 
 declare(strict_types=1);
+use Securized\Ssrf\Tests\TestCase;
 
-uses(Securized\Ssrf\Tests\TestCase::class)->in('tests/Feature');
+uses(TestCase::class)->in('tests/Feature');

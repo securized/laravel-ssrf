@@ -12,7 +12,7 @@ use Securized\Ssrf\SsrfValidator;
  * @method static bool isSafe(string $url)
  * @method static string safeUrl(string $url)
  *
- * @see \Securized\Ssrf\SsrfValidator
+ * @see SsrfValidator
  */
 class Ssrf extends Facade
 {

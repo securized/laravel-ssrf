@@ -2,12 +2,34 @@
 
 declare(strict_types=1);
 
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Securized\Ssrf\SsrfOptions;
+use Securized\Ssrf\SsrfServiceProvider;
 use Securized\Ssrf\Tests\TestCase;
 
 uses(TestCase::class);
+
+/**
+ * Assert a request was rejected by the SSRF middleware.
+ *
+ * Laravel 12+ wraps Guzzle transport failures in ConnectionException, while
+ * Laravel 11 propagates the underlying RequestException. Both mean the request
+ * was blocked, so accept either rather than pinning the suite to one version.
+ */
+function expectBlocked(Closure $request): void
+{
+    try {
+        $request();
+    } catch (ConnectionException|RequestException) {
+        expect(true)->toBeTrue();
+
+        return;
+    }
+
+    throw new RuntimeException('Expected the request to be blocked, but it succeeded.');
+}
 
 // ---------------------------------------------------------------------------
 // Http::ssrf() macro — registered by service provider
@@ -24,32 +46,32 @@ describe('Http::ssrf() macro', function (): void {
 
     test('ssrf() blocks request to localhost', function (): void {
         Http::fake(); // prevent real network calls
-        expect(fn () => Http::ssrf()->get('http://127.0.0.1/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf()->get('http://127.0.0.1/'));
     });
 
     test('ssrf() blocks file:// scheme (A4 bridging)', function (): void {
         Http::fake();
-        expect(fn () => Http::ssrf()->get('file:///etc/passwd'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf()->get('file:///etc/passwd'));
     });
 
     test('ssrf() blocks gopher:// scheme (A4 bridging → RCE)', function (): void {
         Http::fake();
-        expect(fn () => Http::ssrf()->get('gopher://internal:70/1'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf()->get('gopher://internal:70/1'));
     });
 
     test('ssrf() blocks RFC-1918 range 10.x.x.x (A6 local resource leak)', function (): void {
         Http::fake();
-        expect(fn () => Http::ssrf()->get('http://10.0.0.1/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf()->get('http://10.0.0.1/'));
     });
 
     test('ssrf() blocks 169.254.169.254 (cloud metadata – A6)', function (): void {
         Http::fake();
-        expect(fn () => Http::ssrf()->get('http://169.254.169.254/latest/meta-data/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf()->get('http://169.254.169.254/latest/meta-data/'));
     });
 
     test('ssrf() blocks 192.168.x.x (RFC-1918)', function (): void {
         Http::fake();
-        expect(fn () => Http::ssrf()->get('http://192.168.1.100/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf()->get('http://192.168.1.100/'));
     });
 
     test('ssrf() allows a faked safe URL (literal public IP)', function (): void {
@@ -63,7 +85,7 @@ describe('Http::ssrf() macro', function (): void {
 
     test('withSsrfProtection() is identical to ssrf()', function (): void {
         Http::fake();
-        expect(fn () => Http::withSsrfProtection()->get('http://127.0.0.1/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::withSsrfProtection()->get('http://127.0.0.1/'));
     });
 
     test('ssrf() chains with other PendingRequest methods', function (): void {
@@ -89,12 +111,12 @@ describe('Http::ssrf() with options override', function (): void {
             ->withWhitelistDomains([])
             ->withBlacklistIps(['0.0.0.0/0']);
 
-        expect(fn () => Http::ssrf($opts)->get('http://example.com/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf($opts)->get('http://example.com/'));
     });
 
     test('null options use default config', function (): void {
         Http::fake();
-        expect(fn () => Http::ssrf(null)->get('http://127.0.0.1/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::ssrf(null)->get('http://127.0.0.1/'));
     });
 });
 
@@ -117,9 +139,9 @@ describe('auto_protect config', function (): void {
         Http::fake();
 
         // Boot the macro registration fresh
-        $provider = new \Securized\Ssrf\SsrfServiceProvider(app());
+        $provider = new SsrfServiceProvider(app());
         $provider->packageBooted();
 
-        expect(fn () => Http::get('http://127.0.0.1/'))->toThrow(ConnectionException::class);
+        expectBlocked(fn () => Http::get('http://127.0.0.1/'));
     });
 });

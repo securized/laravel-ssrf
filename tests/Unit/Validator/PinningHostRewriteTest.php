@@ -19,6 +19,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Uri;
 use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
@@ -51,7 +52,7 @@ describe('IPv6 pinning produces a valid URL', function (): void {
     test('the pinned IPv6 URL survives a parse round-trip with host and port intact', function (): void {
         $dns = (new FakeDnsResolver)->addRecord('v6.example.com', '2606:4700::1111');
         $result = (new SsrfValidator(unpinnedOpts(true), $dns))->validate('http://v6.example.com:8080/path');
-        $uri = new GuzzleHttp\Psr7\Uri($result['url']);
+        $uri = new Uri($result['url']);
 
         expect($uri->getHost())->toBe('[2606:4700::1111]')
             ->and($uri->getPort())->toBe(8080);
