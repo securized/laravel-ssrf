@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * D1 Domain — domain allow/deny validation.
- */
-
 use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Exceptions\InvalidDomainException;
 use Securized\Ssrf\Exceptions\InvalidIpException;
@@ -19,13 +15,12 @@ test('domain not in whitelist is rejected', function (): void {
         ->toThrow(InvalidDomainException::class);
 });
 
-test('domain matching whitelist regex passes', function (): void {
+test('domain matching a whitelist wildcard proceeds to the IP check', function (): void {
     $opts = (new SsrfOptions)
         ->withWhitelistDomains(['*.example.com'])
         ->withBlacklistIps(['0.0.0.0/0'])
         ->withWhitelistPorts([]);
     $dns = (new FakeDnsResolver)->addRecord('api.example.com', '93.184.216.34');
-    // Passes domain check, blocked by IP
     expect(fn () => (new SsrfValidator($opts, $dns))->validate('http://api.example.com/'))
         ->toThrow(InvalidIpException::class);
 });

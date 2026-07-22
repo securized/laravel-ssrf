@@ -3,9 +3,7 @@
 declare(strict_types=1);
 
 /**
- * D2 DNS Pinning — host rewriting correctness.
- *
- * Two regressions are covered here:
+ * Two regressions:
  *
  *  1. IPv6 addresses must be bracketed when substituted into a URL authority,
  *     otherwise "2606:4700::1111" parses as host "2606" port "4700".

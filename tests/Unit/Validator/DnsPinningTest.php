@@ -3,11 +3,9 @@
 declare(strict_types=1);
 
 /**
- * D2 DNS Pinning — anti-rebinding defense (E2).
- *
- * Paper ref: E2 covers DNS rebinding attacks where a hostname resolves to
- * a safe IP during validation but a private IP during the actual request.
- * IP pinning resolves once and replaces the hostname with the resolved IP.
+ * DNS rebinding: a hostname resolves to a safe IP during validation and to a
+ * private IP for the actual request. Pinning resolves once and substitutes the
+ * validated IP, closing that window.
  */
 
 use Securized\Ssrf\Dns\FakeDnsResolver;
@@ -55,7 +53,7 @@ test('pin_dns with IP literal is a no-op', function (): void {
     expect($result['url'])->toBe('http://1.2.3.4/');
 });
 
-test('E2 rebinding scenario: first resolve gets safe IP, pinning locks it in', function (): void {
+test('rebinding is defeated: the first resolve is pinned for the request', function (): void {
     $dns = (new FakeDnsResolver)->addRecord('rebind.attacker.com', '93.184.216.34');
     $v = new SsrfValidator(pinningOpts(), $dns);
 

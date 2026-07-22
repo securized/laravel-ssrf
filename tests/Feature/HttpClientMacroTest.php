@@ -31,10 +31,6 @@ function expectBlocked(Closure $request): void
     throw new RuntimeException('Expected the request to be blocked, but it succeeded.');
 }
 
-// ---------------------------------------------------------------------------
-// Http::ssrf() macro — registered by service provider
-// ---------------------------------------------------------------------------
-
 describe('Http::ssrf() macro', function (): void {
     test('macro is registered', function (): void {
         expect(Http::hasMacro('ssrf'))->toBeTrue();
@@ -49,22 +45,22 @@ describe('Http::ssrf() macro', function (): void {
         expectBlocked(fn () => Http::ssrf()->get('http://127.0.0.1/'));
     });
 
-    test('ssrf() blocks file:// scheme (A4 bridging)', function (): void {
+    test('ssrf() blocks file:// scheme', function (): void {
         Http::fake();
         expectBlocked(fn () => Http::ssrf()->get('file:///etc/passwd'));
     });
 
-    test('ssrf() blocks gopher:// scheme (A4 bridging → RCE)', function (): void {
+    test('ssrf() blocks gopher:// scheme', function (): void {
         Http::fake();
         expectBlocked(fn () => Http::ssrf()->get('gopher://internal:70/1'));
     });
 
-    test('ssrf() blocks RFC-1918 range 10.x.x.x (A6 local resource leak)', function (): void {
+    test('ssrf() blocks RFC-1918 range 10.x.x.x', function (): void {
         Http::fake();
         expectBlocked(fn () => Http::ssrf()->get('http://10.0.0.1/'));
     });
 
-    test('ssrf() blocks 169.254.169.254 (cloud metadata – A6)', function (): void {
+    test('ssrf() blocks 169.254.169.254 (cloud metadata)', function (): void {
         Http::fake();
         expectBlocked(fn () => Http::ssrf()->get('http://169.254.169.254/latest/meta-data/'));
     });
@@ -99,10 +95,6 @@ describe('Http::ssrf() macro', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Per-request options override
-// ---------------------------------------------------------------------------
-
 describe('Http::ssrf() with options override', function (): void {
     test('HTTPS-only override blocks HTTP', function (): void {
         Http::fake();
@@ -119,10 +111,6 @@ describe('Http::ssrf() with options override', function (): void {
         expectBlocked(fn () => Http::ssrf(null)->get('http://127.0.0.1/'));
     });
 });
-
-// ---------------------------------------------------------------------------
-// auto_protect — global middleware
-// ---------------------------------------------------------------------------
 
 describe('auto_protect config', function (): void {
     test('auto_protect=false does not apply global middleware (Http::get still works for faked safe URLs)', function (): void {

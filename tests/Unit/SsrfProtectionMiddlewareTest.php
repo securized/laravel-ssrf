@@ -13,10 +13,6 @@ use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /**
  * Build a Guzzle client with the SSRF middleware and a mock handler.
  * Captured requests are stored in $history for inspection.
@@ -37,10 +33,6 @@ function makeClient(SsrfOptions $opts, array &$history = [], array $responses = 
     return new Client(['handler' => $stack]);
 }
 
-// ---------------------------------------------------------------------------
-// Blocking behaviour
-// ---------------------------------------------------------------------------
-
 describe('SsrfProtectionMiddleware — blocking', function (): void {
     test('blocks request to localhost IP (127.0.0.1)', function (): void {
         $opts = (new SsrfOptions)->withWhitelistDomains([]);
@@ -54,7 +46,6 @@ describe('SsrfProtectionMiddleware — blocking', function (): void {
     });
 
     test('blocks request to disallowed port', function (): void {
-        // Port 22 not in default whitelist [80, 443, 8080]
         $opts = (new SsrfOptions)->withWhitelistDomains([]);
         $client = makeClient($opts);
         expect(fn () => $client->get('http://1.2.3.4:22/'))->toThrow(RequestException::class);
@@ -85,10 +76,6 @@ describe('SsrfProtectionMiddleware — blocking', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Passing behaviour
-// ---------------------------------------------------------------------------
-
 describe('SsrfProtectionMiddleware — passing', function (): void {
     test('allows request to whitelisted public IP', function (): void {
         $opts = (new SsrfOptions)
@@ -107,10 +94,6 @@ describe('SsrfProtectionMiddleware — passing', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// DNS pinning — URL rewrite
-// ---------------------------------------------------------------------------
-
 describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
     test('with pin_dns, request URI host is replaced with IP and Host header is set', function (): void {
         $opts = (new SsrfOptions)
@@ -127,9 +110,7 @@ describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
 
         $sentRequest = $history[0]['request'];
 
-        // Host in URI should be the IP (same as hostname for a literal IP)
         expect((string) $sentRequest->getUri()->getHost())->toBe('1.2.3.4');
-        // Host header preserved
         expect($sentRequest->hasHeader('Host'))->toBeTrue();
         expect($sentRequest->getHeaderLine('Host'))->toBe('1.2.3.4');
     });
@@ -150,10 +131,6 @@ describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
         expect((string) $sentRequest->getUri())->toBe('http://1.2.3.4/path?q=1');
     });
 });
-
-// ---------------------------------------------------------------------------
-// Static factory SsrfProtectionMiddleware::make()
-// ---------------------------------------------------------------------------
 
 describe('SsrfProtectionMiddleware::make()', function (): void {
     test('make() with no arguments uses default SsrfOptions', function (): void {
@@ -183,10 +160,6 @@ describe('SsrfProtectionMiddleware::make()', function (): void {
         expect(fn () => $client->get('http://127.0.0.1/'))->toThrow(RequestException::class);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Middleware respects validator options
-// ---------------------------------------------------------------------------
 
 describe('SsrfProtectionMiddleware — validator options', function (): void {
     test('middleware blocks based on validator options', function (): void {

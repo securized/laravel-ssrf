@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * cidrMatch() — all branches of IPv4/IPv6 CIDR matching.
- */
-
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 

@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 use Securized\Ssrf\SsrfOptions;
 
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
 describe('SsrfOptions defaults', function (): void {
     test('sendCredentials defaults to false', function (): void {
         expect((new SsrfOptions)->sendCredentials)->toBeFalse();
@@ -63,10 +59,6 @@ describe('SsrfOptions defaults', function (): void {
         expect($ips)->toContain('ff00::/8');
     });
 });
-
-// ---------------------------------------------------------------------------
-// fromConfig()
-// ---------------------------------------------------------------------------
 
 describe('SsrfOptions::fromConfig()', function (): void {
     test('builds from a complete config array', function (): void {
@@ -125,10 +117,6 @@ describe('SsrfOptions::fromConfig()', function (): void {
         expect($opts->whitelistIps)->toBe(['123']);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Wither methods — immutability
-// ---------------------------------------------------------------------------
 
 describe('wither methods are immutable', function (): void {
     test('withPinDns returns new instance with pin_dns=true', function (): void {
@@ -214,10 +202,6 @@ describe('wither methods are immutable', function (): void {
         expect($b->blacklistSchemes)->toBe(['ftp']);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Additive wither helpers
-// ---------------------------------------------------------------------------
 
 describe('additive wither helpers', function (): void {
     test('addBlacklistIp appends without duplication', function (): void {

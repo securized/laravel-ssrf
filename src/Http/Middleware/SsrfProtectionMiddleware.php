@@ -30,10 +30,9 @@ class SsrfProtectionMiddleware
                     return Create::rejectionFor(new RequestException($e->getMessage(), $request, null, $e));
                 }
 
-                // Only rewrite the host when DNS pinning is actually enabled.
-                // Comparing URL strings would also trigger on incidental
-                // normalisation (e.g. scheme/host case), silently pinning
-                // requests the caller never asked to pin.
+                // Gate on the pinned flag, never on a URL string comparison:
+                // validate() also normalises case, so a string diff would pin
+                // requests that never asked to be pinned.
                 if ($result['pinned'] && $result['ips'] !== []) {
                     $request = $request
                         ->withUri($request->getUri()->withHost($this->pinnedHost($result['ips'][0])))
@@ -45,7 +44,7 @@ class SsrfProtectionMiddleware
         };
     }
 
-    /** Wrap IPv6 addresses in brackets so they are valid inside a URL authority. */
+    /** IPv6 addresses must be bracketed to be valid inside a URL authority. */
     private function pinnedHost(string $ip): string
     {
         return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? sprintf('[%s]', $ip) : $ip;

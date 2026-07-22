@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Public API: validate(), isSafe(), safeUrl(), URL reconstruction.
- */
-
 use Securized\Ssrf\Exceptions\SsrfException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;

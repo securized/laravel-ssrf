@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 /**
- * D1 Port / A1 Recon — port allow/deny validation.
- *
- * Paper ref: A1 covers port scanning via SSRF. D1 port validation
- * limits which ports can be targeted, blocking recon of internal services.
+ * Port validation limits which ports an SSRF can reach, blocking use of the
+ * request as a port scanner against internal services.
  */
 
 use Securized\Ssrf\Exceptions\InvalidPortException;
@@ -14,7 +12,7 @@ use Securized\Ssrf\Exceptions\SsrfException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
-describe('A1 — dangerous ports blocked', function (): void {
+describe('dangerous ports blocked', function (): void {
     test('SSH port 22 blocked', function (): void {
         expect(fn () => (new SsrfValidator(new SsrfOptions))->validate('http://example.com:22/'))
             ->toThrow(InvalidPortException::class);
@@ -31,7 +29,7 @@ describe('A1 — dangerous ports blocked', function (): void {
     });
 });
 
-describe('D1 — port whitelist/blacklist', function (): void {
+describe('port whitelist and blacklist', function (): void {
     $blockAllIps = fn () => (new SsrfOptions)->withBlacklistIps(['0.0.0.0/0'])->withWhitelistDomains([]);
 
     test('port 80 allowed by default', function () use ($blockAllIps): void {

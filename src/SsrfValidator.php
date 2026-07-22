@@ -17,7 +17,6 @@ use Securized\Ssrf\Exceptions\SsrfException;
 
 readonly class SsrfValidator
 {
-    /** Default port per scheme, used when the URL omits an explicit port. */
     private const DEFAULT_PORTS = ['http' => 80, 'https' => 443];
 
     private DnsResolver $dns;
@@ -60,9 +59,9 @@ readonly class SsrfValidator
             throw new InvalidUrlException('Credentials in URLs are not permitted.');
         }
 
-        // Uri::getPort() returns null both when no port is given and when the
-        // port equals the scheme default, so fall back to the default for the
-        // scheme. Otherwise http://host:80 would skip port validation entirely.
+        // Uri::getPort() returns null for a port equal to the scheme default,
+        // not just for an absent one — without this, https://host/ would skip
+        // port validation entirely.
         $port = $uri->getPort() ?? self::DEFAULT_PORTS[$scheme] ?? null;
         if ($port !== null) {
             $this->validatePort($port, $opts);
@@ -176,14 +175,8 @@ readonly class SsrfValidator
     }
 
     /**
-     * Match a host against a list of domain patterns.
-     *
-     * Patterns are literal hostnames with `*` as a wildcard — `api.example.com`
-     * matches only that host, and `*.example.com` matches any subdomain. Dots
-     * are literal, so a pattern can never match more than it appears to.
-     *
-     * The host is already lowercased by validateHost(); patterns are lowercased
-     * here so matching is effectively case-insensitive.
+     * Deliberately wildcard matching, not regex: a regex dot matches any
+     * character, so `api.example.com` would also admit `apiXexample.com`.
      *
      * @param  list<string>  $patterns
      */
@@ -192,7 +185,7 @@ readonly class SsrfValidator
         return Str::is(array_map(strtolower(...), $patterns), $host);
     }
 
-    /** Wrap IPv6 addresses in brackets so they are valid inside a URL authority. */
+    /** IPv6 addresses must be bracketed to be valid inside a URL authority. */
     private function formatHost(string $ip): string
     {
         return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? sprintf('[%s]', $ip) : $ip;

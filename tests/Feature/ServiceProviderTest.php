@@ -10,10 +10,6 @@ use Securized\Ssrf\Tests\TestCase;
 
 uses(TestCase::class);
 
-// ---------------------------------------------------------------------------
-// Container bindings registered by service provider
-// ---------------------------------------------------------------------------
-
 describe('Service provider bindings', function (): void {
     test('SsrfOptions is bound in container', function (): void {
         expect(app(SsrfOptions::class))->toBeInstanceOf(SsrfOptions::class);
@@ -35,10 +31,6 @@ describe('Service provider bindings', function (): void {
         expect($opts->whitelistSchemes)->toBe(['https']);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Ssrf Facade
-// ---------------------------------------------------------------------------
 
 describe('Ssrf facade', function (): void {
     test('facade resolves to SsrfValidator', function (): void {

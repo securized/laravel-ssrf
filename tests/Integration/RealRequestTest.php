@@ -20,10 +20,6 @@ const SERVER_HOST = '127.0.0.1';
 const SERVER_PORT = 18923;
 const SERVER_URL = 'http://'.SERVER_HOST.':'.SERVER_PORT;
 
-// ---------------------------------------------------------------------------
-// Lifecycle: start/stop the built-in PHP server
-// ---------------------------------------------------------------------------
-
 beforeAll(function (): void {
     $serverScript = __DIR__.'/server.php';
     $cmd = sprintf(
@@ -57,10 +53,6 @@ afterAll(function (): void {
     }
 });
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function unprotectedClient(): Client
 {
     return new Client(['timeout' => 5]);
@@ -74,10 +66,6 @@ function protectedClient(?SsrfOptions $opts = null): Client
     return new Client(['handler' => $stack, 'timeout' => 5]);
 }
 
-// ---------------------------------------------------------------------------
-// Sanity: unprotected client CAN reach the server
-// ---------------------------------------------------------------------------
-
 test('sanity: unprotected client reaches local server', function (): void {
     $response = unprotectedClient()->get(SERVER_URL.'/ping');
     $body = json_decode($response->getBody()->getContents(), true);
@@ -86,10 +74,6 @@ test('sanity: unprotected client reaches local server', function (): void {
     expect($body['reached'])->toBeTrue();
     expect($body['uri'])->toBe('/ping');
 });
-
-// ---------------------------------------------------------------------------
-// Protected client blocks loopback
-// ---------------------------------------------------------------------------
 
 describe('protected client blocks loopback', function (): void {
     test('127.0.0.1 is blocked', function (): void {
@@ -103,10 +87,6 @@ describe('protected client blocks loopback', function (): void {
             ->toThrow(RequestException::class);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Shorthand IP bypass attempts — these MUST be blocked
-// ---------------------------------------------------------------------------
 
 describe('shorthand IP bypasses are blocked', function (): void {
     test('127.1 resolves to 127.0.0.1 and is blocked', function (): void {
@@ -128,10 +108,6 @@ describe('shorthand IP bypasses are blocked', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// DNS pinning: verify Host header is preserved
-// ---------------------------------------------------------------------------
-
 describe('DNS pinning with real request', function (): void {
     test('pinned request replaces host but preserves Host header', function (): void {
         // Use the IP directly with pin_dns — should work and reach server
@@ -151,10 +127,6 @@ describe('DNS pinning with real request', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Scheme blocking with real server
-// ---------------------------------------------------------------------------
-
 describe('scheme blocking prevents real connections', function (): void {
     test('file:// is blocked before any connection attempt', function (): void {
         expect(fn () => protectedClient()->get('file:///etc/passwd'))
@@ -166,10 +138,6 @@ describe('scheme blocking prevents real connections', function (): void {
             ->toThrow(RequestException::class);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Port blocking with real server
-// ---------------------------------------------------------------------------
 
 describe('port blocking prevents real connections', function (): void {
     test('non-whitelisted port is blocked even when server is listening', function (): void {

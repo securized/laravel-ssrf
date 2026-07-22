@@ -18,10 +18,6 @@ function permissiveOptions(): SsrfOptions
         ->withBlacklistIps([]);
 }
 
-// ---------------------------------------------------------------------------
-// Non-string values
-// ---------------------------------------------------------------------------
-
 describe('SsrfSafeUrl — non-string values', function (): void {
     test('integer value fails with type message', function (): void {
         $rule = new SsrfSafeUrl(permissiveOptions());
@@ -45,10 +41,6 @@ describe('SsrfSafeUrl — non-string values', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Blocked URLs
-// ---------------------------------------------------------------------------
-
 describe('SsrfSafeUrl — blocked URLs', function (): void {
     test('localhost blocked and returns safe message (no IP disclosed)', function (): void {
         $rule = new SsrfSafeUrl;
@@ -63,12 +55,12 @@ describe('SsrfSafeUrl — blocked URLs', function (): void {
         expect($result->fails())->toBeTrue();
     });
 
-    test('gopher scheme fails validation (A4 bridging attack)', function (): void {
+    test('gopher scheme fails validation', function (): void {
         $result = Validator::make(['url' => 'gopher://internal.host:70/1'], ['url' => [new SsrfSafeUrl]]);
         expect($result->fails())->toBeTrue();
     });
 
-    test('cloud metadata endpoint 169.254.169.254 fails validation (A6)', function (): void {
+    test('cloud metadata endpoint 169.254.169.254 fails validation', function (): void {
         $result = Validator::make(['url' => 'http://169.254.169.254/'], ['url' => [new SsrfSafeUrl]]);
         expect($result->fails())->toBeTrue();
     });
@@ -87,20 +79,12 @@ describe('SsrfSafeUrl — blocked URLs', function (): void {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Passing URLs
-// ---------------------------------------------------------------------------
-
 describe('SsrfSafeUrl — passing URLs', function (): void {
     test('public IP with no restrictions passes', function (): void {
         $result = Validator::make(['url' => 'http://1.1.1.1/'], ['url' => [new SsrfSafeUrl(permissiveOptions())]]);
         expect($result->passes())->toBeTrue();
     });
 });
-
-// ---------------------------------------------------------------------------
-// Custom options
-// ---------------------------------------------------------------------------
 
 describe('SsrfSafeUrl — custom options', function (): void {
     test('HTTPS-only rule blocks HTTP', function (): void {
@@ -119,10 +103,6 @@ describe('SsrfSafeUrl — custom options', function (): void {
         expect($result->errors()->first('webhook_url'))->toBe('The webhook url contains a URL that is not permitted.');
     });
 });
-
-// ---------------------------------------------------------------------------
-// Container resolution
-// ---------------------------------------------------------------------------
 
 describe('SsrfSafeUrl — container resolution', function (): void {
     test('rule resolves SsrfValidator from container when no options given', function (): void {

@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * D2 IP Allow — IP whitelist validation.
- */
-
 use Securized\Ssrf\Exceptions\InvalidIpException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;

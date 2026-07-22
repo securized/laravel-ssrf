@@ -3,11 +3,8 @@
 declare(strict_types=1);
 
 /**
- * D2 IP Deny / A6 Local Resource Leak / A1 Network Scan.
- *
- * Paper ref: A6 covers accessing local resources via SSRF (localhost,
- * RFC-1918, cloud metadata). D2 IP denylisting blocks these ranges.
- * All tests use IP literals to avoid DNS resolution.
+ * Denylisting blocks SSRF against local resources — loopback, RFC-1918, and
+ * cloud metadata endpoints. All tests use IP literals to avoid DNS resolution.
  */
 
 use Securized\Ssrf\Exceptions\InvalidIpException;
@@ -25,7 +22,7 @@ function blacklistValidator(array $blacklist): SsrfValidator
     );
 }
 
-describe('A6 — IPv4 private/reserved ranges', function (): void {
+describe('IPv4 private and reserved ranges', function (): void {
     test('127.0.0.1 (loopback)', fn () => expect(fn () => blacklistValidator(['127.0.0.0/8'])->validate('http://127.0.0.1/'))->toThrow(InvalidIpException::class));
 
     test('127.0.0.254 (loopback boundary)', fn () => expect(fn () => blacklistValidator(['127.0.0.0/8'])->validate('http://127.0.0.254/'))->toThrow(InvalidIpException::class));
@@ -45,13 +42,13 @@ describe('A6 — IPv4 private/reserved ranges', function (): void {
     test('192.168.255.255 (/16 boundary)', fn () => expect(fn () => blacklistValidator(['192.168.0.0/16'])->validate('http://192.168.255.255/'))->toThrow(InvalidIpException::class));
 });
 
-describe('A6 — cloud metadata', function (): void {
+describe('cloud metadata endpoints', function (): void {
     test('169.254.169.254 (AWS/GCP metadata endpoint)', fn () => expect(fn () => blacklistValidator(['169.254.0.0/16'])->validate('http://169.254.169.254/'))->toThrow(InvalidIpException::class));
 
     test('169.254.0.1 (link-local)', fn () => expect(fn () => blacklistValidator(['169.254.0.0/16'])->validate('http://169.254.0.1/'))->toThrow(InvalidIpException::class));
 });
 
-describe('A6 — other reserved ranges', function (): void {
+describe('other reserved ranges', function (): void {
     test('0.0.0.1 (0.0.0.0/8)', fn () => expect(fn () => blacklistValidator(['0.0.0.0/8'])->validate('http://0.0.0.1/'))->toThrow(InvalidIpException::class));
 
     test('100.64.0.1 (shared address space RFC-6598)', fn () => expect(fn () => blacklistValidator(['100.64.0.0/10'])->validate('http://100.64.0.1/'))->toThrow(InvalidIpException::class));
@@ -73,7 +70,7 @@ describe('A6 — other reserved ranges', function (): void {
     test('240.0.0.1 (reserved)', fn () => expect(fn () => blacklistValidator(['240.0.0.0/4'])->validate('http://240.0.0.1/'))->toThrow(InvalidIpException::class));
 });
 
-describe('A6 — IPv6 private ranges', function (): void {
+describe('IPv6 private ranges', function (): void {
     test('::1 (loopback)', fn () => expect(fn () => blacklistValidator(['::1/128'])->validate('http://[::1]/'))->toThrow(InvalidIpException::class));
 
     test('fc00::1 (unique local)', fn () => expect(fn () => blacklistValidator(['fc00::/7'])->validate('http://[fc00::1]/'))->toThrow(InvalidIpException::class));

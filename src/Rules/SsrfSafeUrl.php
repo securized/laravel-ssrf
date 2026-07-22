@@ -10,27 +10,6 @@ use Securized\Ssrf\Exceptions\SsrfException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
-/**
- * Laravel validation rule that checks a URL for SSRF safety.
- *
- * Usage in a controller or FormRequest:
- *
- *   $request->validate([
- *       'webhook_url' => ['required', 'url', new SsrfSafeUrl()],
- *   ]);
- *
- * Usage with custom options (e.g. enforce DNS pinning for this field):
- *
- *   $request->validate([
- *       'webhook_url' => [
- *           'required', 'url',
- *           new SsrfSafeUrl(SsrfOptions::fromConfig(config('ssrf'))->withPinDns()),
- *       ],
- *   ]);
- *
- * The validation failure message intentionally does not reveal internal
- * network details (resolved IPs, CIDR ranges) to end users.
- */
 class SsrfSafeUrl implements ValidationRule
 {
     public function __construct(
@@ -52,6 +31,8 @@ class SsrfSafeUrl implements ValidationRule
         try {
             $validator->validate($value);
         } catch (SsrfException) {
+            // Deliberately generic: the exception message names resolved IPs and
+            // CIDR ranges, which must not reach an end user.
             $fail('The :attribute contains a URL that is not permitted.');
         }
     }

@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 /**
- * D1 Scheme / A4 Bridging Attack — scheme allow/deny validation.
- *
- * Paper ref: A4 covers gopher, ftp, file, dict protocols that enable
- * protocol bridging → RCE. D1 scheme validation is the primary defense.
+ * Schemes like gopher, ftp, file and dict allow protocol bridging, which can
+ * escalate an SSRF into RCE. Scheme validation is the primary defence.
  */
 
 use Securized\Ssrf\Exceptions\InvalidSchemeException;
@@ -14,7 +12,7 @@ use Securized\Ssrf\Exceptions\SsrfException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
-describe('A4 — blocked schemes', function (): void {
+describe('blocked schemes', function (): void {
     test('file:// blocked (local file access)', function (): void {
         expect(fn () => (new SsrfValidator(new SsrfOptions))->validate('file:///etc/passwd'))
             ->toThrow(InvalidSchemeException::class);
@@ -41,7 +39,7 @@ describe('A4 — blocked schemes', function (): void {
     });
 });
 
-describe('D1 — scheme whitelist/blacklist', function (): void {
+describe('scheme whitelist and blacklist', function (): void {
     test('http allowed by default', function (): void {
         $v = new SsrfValidator((new SsrfOptions)->withBlacklistIps(['0.0.0.0/0'])->withWhitelistDomains([]));
         try {

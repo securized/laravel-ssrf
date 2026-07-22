@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * D1 – URL Validation: basic URL parsing and structure checks.
- */
-
 use Securized\Ssrf\Exceptions\InvalidSchemeException;
 use Securized\Ssrf\Exceptions\InvalidUrlException;
 use Securized\Ssrf\Exceptions\SsrfException;

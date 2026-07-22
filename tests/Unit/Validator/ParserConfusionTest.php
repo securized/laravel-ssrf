@@ -3,11 +3,9 @@
 declare(strict_types=1);
 
 /**
- * E1 — URL parser confusion / credential injection attacks.
- *
- * Paper ref: E1 covers attacks where the URL parser is confused by
- * credentials (@), query strings (?), fragments (#), or encoding to
- * extract a different host than the one actually requested.
+ * Parser confusion: credentials (@), query strings (?), fragments (#), or
+ * encoding trick a validator into reading a different host than the one the
+ * HTTP client will actually request.
  *
  * Case study: LibreX's home-grown get_root_domain() was bypassed by
  * appending ?example.org to evil.com:22.

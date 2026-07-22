@@ -2,14 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * D1 Domain — domain pattern semantics.
- *
- * Domain lists are literal hostnames with `*` as a wildcard, matched via
- * Str::is(). Dots are literal, so a pattern can never match more hosts than it
- * appears to — the reason this is not regex matching.
- */
-
 use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Exceptions\InvalidDomainException;
 use Securized\Ssrf\SsrfOptions;

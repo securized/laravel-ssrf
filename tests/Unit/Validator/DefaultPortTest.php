@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 /**
- * D1 Port — implicit (scheme-default) port validation.
- *
  * Uri::getPort() returns null both when no port is present and when the port
  * equals the scheme default, so a URL like https://host/ must still be checked
  * against port 443. Without this, a port whitelist that deliberately excludes
