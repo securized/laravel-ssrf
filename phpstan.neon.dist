@@ -1,8 +1,3 @@
-includes:
-    - vendor/larastan/larastan/extension.neon
-    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
-    - vendor/phpstan/phpstan-phpunit/extension.neon
-
 parameters:
     level: 6
 
@@ -10,4 +5,9 @@ parameters:
         - src
         - config
 
-    checkMissingIterableValueType: false
+    ignoreErrors:
+        # config/ssrf.php is published into the application's config directory,
+        # where env() is the correct way to read environment configuration.
+        -
+            message: "#Called 'env' outside of the config directory#"
+            path: config/ssrf.php
