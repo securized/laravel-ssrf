@@ -31,10 +31,10 @@ return [
     | Pin DNS
     |--------------------------------------------------------------------------
     |
-    | When true, the hostname in the outgoing request is replaced with the
-    | first resolved IP address, preventing DNS rebinding attacks. The
-    | original Host header is preserved so the server receives correct SNI.
-    | Note: SSL certificate validation may be affected by DNS pinning.
+    | When true, outgoing requests connect to the first resolved IP address
+    | via CURLOPT_RESOLVE, preventing DNS rebinding attacks. The URL keeps
+    | its hostname, so the Host header, SNI and certificate checks are
+    | unaffected. Without curl, the hostname is replaced by the IP instead.
     |
     */
     'pin_dns' => false,

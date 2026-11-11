@@ -163,7 +163,7 @@ return [
     // Allow credentials (user:pass@host) in URLs. Disabled by default.
     'send_credentials' => false,
 
-    // Replace hostname with resolved IP before sending the request.
+    // Connect to the validated IP via CURLOPT_RESOLVE, keeping the hostname.
     // Prevents DNS rebinding attacks. See "DNS Pinning" below.
     'pin_dns' => false,
 
@@ -249,7 +249,7 @@ new SsrfSafeUrl($options)
 
 ## DNS Pinning
 
-DNS rebinding is an attack where a hostname initially resolves to a public IP (passing validation) but then re-resolves to a private IP for the actual request. Enabling `pin_dns` prevents this by resolving the hostname once, validating the IP, and then replacing the hostname in the URL with that IP for the actual request. The original `Host` header is preserved.
+DNS rebinding is an attack where a hostname initially resolves to a public IP (passing validation) but then re-resolves to a private IP for the actual request. Enabling `pin_dns` prevents this by resolving the hostname once, validating the IP, and then telling curl to connect to exactly that IP through [`CURLOPT_RESOLVE`](https://curl.se/libcurl/c/CURLOPT_RESOLVE.html). The URL itself is left alone, so the `Host` header, TLS SNI and certificate validation all keep using the original hostname.
 
 ```php
 // In config/ssrf.php
@@ -259,7 +259,9 @@ DNS rebinding is an attack where a hostname initially resolves to a public IP (p
 Http::ssrf(SsrfOptions::fromConfig(config('ssrf'))->withPinDns())->get($url);
 ```
 
-Note: DNS pinning may affect SSL certificate validation in some configurations.
+`CURLOPT_RESOLVE` only works with Guzzle's curl handler, which Laravel uses by default. When a request uses the `stream` option, or the curl extension is not installed, the middleware falls back to replacing the hostname in the URL with the IP and setting the `Host` header. HTTPS certificate validation may fail in that fallback. If you configure a custom non-curl handler yourself, pinning is not applied.
+
+`Ssrf::safeUrl()` and `Ssrf::validate()` have no request to attach curl options to, so with `pin_dns` enabled they still return the URL with the IP substituted for the hostname.
 
 ## What this does not protect against
 

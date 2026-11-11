@@ -13,8 +13,10 @@ declare(strict_types=1);
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\HandlerStack;
+use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
+use Securized\Ssrf\SsrfValidator;
 
 const SERVER_HOST = '127.0.0.1';
 const SERVER_PORT = 18923;
@@ -124,6 +126,26 @@ describe('DNS pinning with real request', function (): void {
         expect($response->getStatusCode())->toBe(200);
         expect($body['reached'])->toBeTrue();
         expect($body['uri'])->toBe('/pinned');
+    });
+
+    test('a pinned hostname connects to the validated IP and keeps its Host header', function (): void {
+        // "pinned.invalid" cannot resolve through real DNS, so reaching the
+        // server proves curl used the CURLOPT_RESOLVE entry for the connection.
+        $opts = (new SsrfOptions)
+            ->withPinDns()
+            ->withBlacklistIps([])
+            ->withWhitelistPorts([SERVER_PORT]);
+        $dns = (new FakeDnsResolver)->addRecord('pinned.invalid', SERVER_HOST);
+
+        $stack = HandlerStack::create();
+        $stack->push((new SsrfProtectionMiddleware(new SsrfValidator($opts, $dns)))->handler());
+        $client = new Client(['handler' => $stack, 'timeout' => 5]);
+
+        $response = $client->get('http://pinned.invalid:'.SERVER_PORT.'/pinned');
+        $body = json_decode($response->getBody()->getContents(), true);
+
+        expect($body['reached'])->toBeTrue()
+            ->and($body['host'])->toBe('pinned.invalid:'.SERVER_PORT);
     });
 });
 
