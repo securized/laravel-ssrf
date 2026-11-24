@@ -124,6 +124,8 @@ readonly class SsrfValidator
     {
         $host = strtolower(trim($host, '[]'));
 
+        $this->assertHostSyntax($host);
+
         if ($this->isNonCanonicalIpv4($host)) {
             throw new InvalidUrlException(
                 sprintf('Host "%s" is a numeric address that is not in dotted-decimal form.', $host)
@@ -147,6 +149,25 @@ readonly class SsrfValidator
         }
 
         return ['host' => $host, 'ips' => $this->validateIps($ips, $host, $opts)];
+    }
+
+    /**
+     * curl percent-decodes the host before resolving it, so "%61.example" here
+     * would be validated under one name and fetched under another.
+     */
+    private function assertHostSyntax(string $host): void
+    {
+        if (str_contains($host, ':')) {
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                throw new InvalidUrlException(sprintf('Host "%s" is not a valid IPv6 address.', $host));
+            }
+
+            return;
+        }
+
+        if (preg_match('/^[a-z0-9_\x80-\xff][a-z0-9._\-\x80-\xff]*$/', $host) !== 1) {
+            throw new InvalidUrlException(sprintf('Host "%s" contains characters that are not valid in a hostname.', $host));
+        }
     }
 
     /**
@@ -189,7 +210,8 @@ readonly class SsrfValidator
                 fn (string $ip) => $whitelist->contains(fn (string $range) => $this->cidrMatch($ip, $range))
             )->values();
 
-            if ($allowed->isEmpty()) {
+            // Unpinned, curl may connect to any address the name resolves to.
+            if ($allowed->isEmpty() || (! $opts->pinDns && $allowed->count() !== $resolved->count())) {
                 throw new InvalidIpException(
                     sprintf('Host "%s" resolves to [%s] which is not in the IP whitelist.', $host, $resolved->implode(', '))
                 );
