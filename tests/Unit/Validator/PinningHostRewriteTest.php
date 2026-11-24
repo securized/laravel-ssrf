@@ -20,6 +20,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Uri;
 use Securized\Ssrf\Dns\FakeDnsResolver;
+use Securized\Ssrf\Http\DnsPinner;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
@@ -54,7 +55,7 @@ function unpinnedOpts(bool $pin = false): SsrfOptions
 
 function pinEntry(string $entry): string
 {
-    return SsrfProtectionMiddleware::expiringPrefix().$entry;
+    return DnsPinner::expiringPrefix().$entry;
 }
 
 describe('IPv6 pinning produces a valid URL', function (): void {
