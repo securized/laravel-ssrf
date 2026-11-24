@@ -17,8 +17,9 @@ class NativeDnsResolver implements DnsResolver
             ->values()
             ->all();
 
-        // Fallback: dns_get_record doesn't handle shorthand IPs (127.1, 0x7f000001)
-        // but gethostbyname / curl do. Catch these so the blacklist can reject them.
+        // Fallback: dns_get_record only asks DNS, while curl resolves through
+        // libc, which also reads the hosts file. Catch those names so the
+        // blacklist can reject them.
         if ($ips === []) {
             $resolved = @gethostbyname($host);
             if ($resolved !== $host && filter_var($resolved, FILTER_VALIDATE_IP)) {

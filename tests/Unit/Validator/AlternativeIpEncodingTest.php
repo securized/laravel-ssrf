@@ -16,9 +16,9 @@ use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
 describe('decimal/hex/octal IPv4 representations', function (): void {
-    // These bypass filter_var(FILTER_VALIDATE_IP) but gethostbyname/curl
-    // resolves them to real IPs. The gethostbyname fallback in NativeDnsResolver
-    // catches them so the IP blacklist can reject the resolved address.
+    // These bypass filter_var(FILTER_VALIDATE_IP) but curl reads them as
+    // real IPs. The validator rejects them outright, without a DNS lookup.
+    // See NonCanonicalIpv4Test for the cases that pin that down.
 
     test('decimal 2130706433 (= 127.0.0.1) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://2130706433/'))->toBeFalse());
 
@@ -26,13 +26,13 @@ describe('decimal/hex/octal IPv4 representations', function (): void {
 
     test('octal 0177.0.0.1 (= 127.0.0.1) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://0177.0.0.1/'))->toBeFalse());
 
-    test('shorthand 127.1 (= 127.0.0.1) is blocked via gethostbyname fallback', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://127.1/'))->toBeFalse());
+    test('shorthand 127.1 (= 127.0.0.1) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://127.1/'))->toBeFalse());
 
-    test('shorthand 127.0.1 (= 127.0.0.1) is blocked via gethostbyname fallback', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://127.0.1/'))->toBeFalse());
+    test('shorthand 127.0.1 (= 127.0.0.1) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://127.0.1/'))->toBeFalse());
 
     test('leading zeros 127.000.000.001 is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://127.000.000.001/'))->toBeFalse());
 
-    test('http://0/ (= 0.0.0.0) is blocked via gethostbyname fallback', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://0/'))->toBeFalse());
+    test('http://0/ (= 0.0.0.0) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://0/'))->toBeFalse());
 });
 
 describe('IPv4-mapped IPv6 addresses', function (): void {
