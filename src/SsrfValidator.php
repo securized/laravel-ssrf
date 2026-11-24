@@ -140,30 +140,36 @@ readonly class SsrfValidator
             throw new InvalidDomainException(sprintf('Host "%s" does not resolve to any IP address.', $host));
         }
 
-        $this->validateIps($ips, $host, $opts);
-
-        return ['host' => $host, 'ips' => $ips];
+        return ['host' => $host, 'ips' => $this->validateIps($ips, $host, $opts)];
     }
 
-    /** @param list<string> $ips */
-    private function validateIps(array $ips, string $host, SsrfOptions $opts): void
+    /**
+     * Returns the addresses a request may connect to. With an IP whitelist
+     * that is only the whitelisted ones, so pinning never picks an address
+     * that merely shared a DNS answer with an allowed one.
+     *
+     * @param  list<string>  $ips
+     * @return non-empty-list<string>
+     */
+    private function validateIps(array $ips, string $host, SsrfOptions $opts): array
     {
-        $ips = collect($ips);
+        $resolved = collect($ips);
+        $allowed = $resolved;
 
         if ($opts->whitelistIps !== []) {
             $whitelist = collect($opts->whitelistIps);
-            $allowed = $ips->contains(
+            $allowed = $resolved->filter(
                 fn (string $ip) => $whitelist->contains(fn (string $range) => $this->cidrMatch($ip, $range))
-            );
+            )->values();
 
-            if (! $allowed) {
+            if ($allowed->isEmpty()) {
                 throw new InvalidIpException(
-                    sprintf('Host "%s" resolves to [%s] which is not in the IP whitelist.', $host, $ips->implode(', '))
+                    sprintf('Host "%s" resolves to [%s] which is not in the IP whitelist.', $host, $resolved->implode(', '))
                 );
             }
         }
 
-        $ips->each(function (string $ip) use ($host, $opts): void {
+        $resolved->each(function (string $ip) use ($host, $opts): void {
             collect($opts->blacklistIps)->each(function (string $range) use ($ip, $host): void {
                 if ($this->cidrMatch($ip, $range)) {
                     throw new InvalidIpException(
@@ -172,6 +178,8 @@ readonly class SsrfValidator
                 }
             });
         });
+
+        return $allowed->all();
     }
 
     /**

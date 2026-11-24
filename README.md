@@ -259,7 +259,15 @@ DNS rebinding is an attack where a hostname initially resolves to a public IP (p
 Http::ssrf(SsrfOptions::fromConfig(config('ssrf'))->withPinDns())->get($url);
 ```
 
-`CURLOPT_RESOLVE` only works with Guzzle's curl handler, which Laravel uses by default. When a request uses the `stream` option, or the curl extension is not installed, the middleware falls back to replacing the hostname in the URL with the IP and setting the `Host` header. HTTPS certificate validation may fail in that fallback. If you configure a custom non-curl handler yourself, pinning is not applied.
+Every validated address is pinned, so curl can still fail over between them. With an IP whitelist, only the whitelisted addresses are pinned. Pins expire with curl's DNS cache instead of staying on a reused handle (libcurl 7.75+).
+
+`CURLOPT_RESOLVE` is not consulted in every setup, so the middleware pins another way where it has to:
+
+- **HTTPS through a proxy:** the proxy does the DNS lookup, so the request uses [`CURLOPT_CONNECT_TO`](https://curl.se/libcurl/c/CURLOPT_CONNECT_TO.html) to tunnel to the validated IP. TLS still uses the hostname.
+- **HTTP through a proxy, the `stream` option, or no curl extension:** the hostname in the URL is replaced with the IP and the `Host` header is set. HTTPS certificate validation may fail for `stream` requests and without curl.
+- **IDN hostnames:** the request is sent with the punycode name, which needs the intl extension. Without it the URL is rewritten as above.
+
+If you configure a custom non-curl handler yourself, pinning is not applied.
 
 `Ssrf::safeUrl()` and `Ssrf::validate()` have no request to attach curl options to, so with `pin_dns` enabled they still return the URL with the IP substituted for the hostname.
 

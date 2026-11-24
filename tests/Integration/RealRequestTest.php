@@ -111,8 +111,7 @@ describe('shorthand IP bypasses are blocked', function (): void {
 });
 
 describe('DNS pinning with real request', function (): void {
-    test('pinned request replaces host but preserves Host header', function (): void {
-        // Use the IP directly with pin_dns — should work and reach server
+    test('a pinned request to an IP literal is sent as is', function (): void {
         $opts = (new SsrfOptions)
             ->withPinDns()
             ->withBlacklistIps([])    // allow loopback for this test
