@@ -226,6 +226,12 @@ IP entries support CIDR notation for both IPv4 and IPv6:
 ],
 ```
 
+### Numeric hosts
+
+A host whose last label is numeric is an IPv4 address, never a DNS name, as no top-level domain is all-numeric. It is accepted only in dotted-decimal form. Octal, hex, integer and shorthand forms (`0177.0.0.1`, `0x7f000001`, `2130706433`, `127.1`, `127.0.0.1.`) throw `InvalidUrlException` before any DNS lookup.
+
+They are rejected and not converted because PHP, libc and curl read them differently from one build to the next, so no conversion here could be trusted to match what curl then connects to. Looking them up is worse: a resolver that answers for one would get the URL approved while curl connects to the address it encodes. This is the same rule as the WHATWG URL Standard's "ends in a number" check.
+
 ## Per-Request Options
 
 Override the global config for a single request using `SsrfOptions`:
@@ -264,8 +270,10 @@ Every validated address is pinned, so curl can still fail over between them. Wit
 `CURLOPT_RESOLVE` is not consulted in every setup, so the middleware pins another way where it has to:
 
 - **HTTPS through a proxy:** the proxy does the DNS lookup, so the request uses [`CURLOPT_CONNECT_TO`](https://curl.se/libcurl/c/CURLOPT_CONNECT_TO.html) to tunnel to the validated IP. TLS still uses the hostname.
-- **HTTP through a proxy, the `stream` option, or no curl extension:** the hostname in the URL is replaced with the IP and the `Host` header is set. HTTPS certificate validation may fail for `stream` requests and without curl.
+- **HTTP through a proxy, the `stream` option, or no curl extension:** the hostname in the URL is replaced with the IP and the `Host` header is set. HTTPS certificate validation may fail for `stream` requests and without curl. Plain HTTP through a proxy is rewritten instead of tunnelled because `CURLOPT_CONNECT_TO` makes curl send `CONNECT`, which proxies commonly refuse for port 80.
 - **IDN hostnames:** the request is sent with the punycode name, which needs the intl extension. Without it the URL is rewritten as above.
+
+Proxy detection is deliberately broad. A request counts as proxied when the Guzzle `proxy` option, `CURLOPT_PROXY`, or one of the proxy environment variables curl reads (`http_proxy`, `https_proxy`, `all_proxy`) applies to its scheme, and `no_proxy` lists are ignored. A request that ends up going direct is then still pinned, only to the first validated address, whereas missing a proxy would lose the pin.
 
 If you configure a custom non-curl handler yourself, pinning is not applied.
 
