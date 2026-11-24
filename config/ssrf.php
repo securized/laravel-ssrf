@@ -31,10 +31,9 @@ return [
     | Pin DNS
     |--------------------------------------------------------------------------
     |
-    | When true, the hostname in the outgoing request is replaced with the
-    | first resolved IP address, preventing DNS rebinding attacks. The
-    | original Host header is preserved so the server receives correct SNI.
-    | Note: SSL certificate validation may be affected by DNS pinning.
+    | When true, outgoing requests connect only to the validated IP addresses,
+    | preventing DNS rebinding attacks. The URL keeps its hostname, so TLS is
+    | unaffected. See "DNS Pinning" in the README.
     |
     */
     'pin_dns' => false,

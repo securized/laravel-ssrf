@@ -95,7 +95,7 @@ describe('SsrfProtectionMiddleware — passing', function (): void {
 });
 
 describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
-    test('with pin_dns, request URI host is replaced with IP and Host header is set', function (): void {
+    test('with pin_dns and an IP literal host, the request is sent unchanged', function (): void {
         $opts = (new SsrfOptions)
             ->withWhitelistDomains([])
             ->withWhitelistSchemes([])
@@ -110,9 +110,8 @@ describe('SsrfProtectionMiddleware — DNS pinning', function (): void {
 
         $sentRequest = $history[0]['request'];
 
-        expect((string) $sentRequest->getUri()->getHost())->toBe('1.2.3.4');
-        expect($sentRequest->hasHeader('Host'))->toBeTrue();
-        expect($sentRequest->getHeaderLine('Host'))->toBe('1.2.3.4');
+        expect((string) $sentRequest->getUri())->toBe('http://1.2.3.4/');
+        expect($history[0]['options'])->not->toHaveKey('curl');
     });
 
     test('without pin_dns, request URI is unchanged', function (): void {

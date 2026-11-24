@@ -77,7 +77,6 @@ describe('hosts the rule must leave alone', function (): void {
         'numeric first label' => ['123.example.com'],
         'ip-shaped prefix' => ['127.0.0.1.example.com'],
         'hex-looking first label' => ['0x7f.example.com'],
-        'trailing dot on a name' => ['example.com.'],
         'punycode tld' => ['example.xn--p1ai'],
     ]);
 

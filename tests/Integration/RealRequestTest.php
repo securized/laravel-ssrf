@@ -13,12 +13,22 @@ declare(strict_types=1);
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\HandlerStack;
+use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
+use Securized\Ssrf\SsrfValidator;
 
 const SERVER_HOST = '127.0.0.1';
 const SERVER_PORT = 18923;
 const SERVER_URL = 'http://'.SERVER_HOST.':'.SERVER_PORT;
+
+beforeEach(function (): void {
+    foreach (['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
+        putenv($name);
+        // Guzzle reads its proxy defaults from $_SERVER first.
+        unset($_SERVER[$name], $_ENV[$name]);
+    }
+});
 
 beforeAll(function (): void {
     $serverScript = __DIR__.'/server.php';
@@ -109,8 +119,7 @@ describe('shorthand IP bypasses are blocked', function (): void {
 });
 
 describe('DNS pinning with real request', function (): void {
-    test('pinned request replaces host but preserves Host header', function (): void {
-        // Use the IP directly with pin_dns — should work and reach server
+    test('a pinned request to an IP literal is sent as is', function (): void {
         $opts = (new SsrfOptions)
             ->withPinDns()
             ->withBlacklistIps([])    // allow loopback for this test
@@ -124,6 +133,25 @@ describe('DNS pinning with real request', function (): void {
         expect($response->getStatusCode())->toBe(200);
         expect($body['reached'])->toBeTrue();
         expect($body['uri'])->toBe('/pinned');
+    });
+
+    test('a pinned hostname connects to the validated IP and keeps its Host header', function (): void {
+        // "pinned.invalid" cannot resolve through real DNS, so reaching the server proves the pin was used.
+        $opts = (new SsrfOptions)
+            ->withPinDns()
+            ->withBlacklistIps([])
+            ->withWhitelistPorts([SERVER_PORT]);
+        $dns = (new FakeDnsResolver)->addRecord('pinned.invalid', SERVER_HOST);
+
+        $stack = HandlerStack::create();
+        $stack->push((new SsrfProtectionMiddleware(new SsrfValidator($opts, $dns)))->handler());
+        $client = new Client(['handler' => $stack, 'timeout' => 5]);
+
+        $response = $client->get('http://pinned.invalid:'.SERVER_PORT.'/pinned');
+        $body = json_decode($response->getBody()->getContents(), true);
+
+        expect($body['reached'])->toBeTrue()
+            ->and($body['host'])->toBe('pinned.invalid:'.SERVER_PORT);
     });
 });
 

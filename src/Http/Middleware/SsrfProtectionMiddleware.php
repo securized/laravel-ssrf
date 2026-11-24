@@ -5,17 +5,23 @@ declare(strict_types=1);
 namespace Securized\Ssrf\Http\Middleware;
 
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Handler\CurlMultiHandler;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use Psr\Http\Message\RequestInterface;
 use Securized\Ssrf\Exceptions\SsrfException;
+use Securized\Ssrf\Http\DnsPinner;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
 class SsrfProtectionMiddleware
 {
+    public const REWRITE_OPTION = DnsPinner::REWRITE_OPTION;
+
     public function __construct(
         private readonly SsrfValidator $validator,
+        private readonly DnsPinner $pinner = new DnsPinner,
     ) {}
 
     public function handler(): callable
@@ -25,7 +31,7 @@ class SsrfProtectionMiddleware
                 $urlStr = (string) $request->getUri();
 
                 try {
-                    $result = $this->validator->validate($urlStr);
+                    $result = $this->validator->validate($urlStr, true);
                 } catch (SsrfException $e) {
                     return Create::rejectionFor(new RequestException($e->getMessage(), $request, null, $e));
                 }
@@ -33,21 +39,18 @@ class SsrfProtectionMiddleware
                 // Gate on the pinned flag, never on a URL string comparison:
                 // validate() also normalises case, so a string diff would pin
                 // requests that never asked to be pinned.
-                if ($result['pinned'] && $result['ips'] !== []) {
-                    $request = $request
-                        ->withUri($request->getUri()->withHost($this->pinnedHost($result['ips'][0])))
-                        ->withHeader('Host', $result['host']);
+                if ($result['pinned'] && ! filter_var($result['host'], FILTER_VALIDATE_IP)) {
+                    // Guzzle's default handler is a closure; a handler object that is not curl ignores curl options.
+                    if (is_object($next) && ! $next instanceof \Closure && ! $next instanceof CurlHandler && ! $next instanceof CurlMultiHandler) {
+                        $options[self::REWRITE_OPTION] = true;
+                    }
+
+                    [$request, $options] = $this->pinner->pin($request, $options, $result['host'], $result['ips']);
                 }
 
                 return $next($request, $options);
             };
         };
-    }
-
-    /** IPv6 addresses must be bracketed to be valid inside a URL authority. */
-    private function pinnedHost(string $ip): string
-    {
-        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? sprintf('[%s]', $ip) : $ip;
     }
 
     public static function make(?SsrfOptions $options = null): callable
