@@ -226,7 +226,7 @@ readonly class SsrfValidator
             }
         }
 
-        $resolved->each(function (string $ip) use ($host, $opts): void {
+        $resolved->merge($resolved->map($this->nat64Target(...))->filter())->each(function (string $ip) use ($host, $opts): void {
             collect($opts->blacklistIps)->each(function (string $range) use ($ip, $host): void {
                 if ($this->cidrMatch($ip, $range)) {
                     throw new InvalidIpException(
@@ -237,6 +237,20 @@ readonly class SsrfValidator
         });
 
         return $allowed->all();
+    }
+
+    /**
+     * A NAT64 gateway forwards 64:ff9b::/96 to the IPv4 address in its last 32
+     * bits (RFC 6052). The range cannot simply be blacklisted: behind DNS64
+     * every IPv4-only host resolves into it.
+     */
+    private function nat64Target(string $ip): ?string
+    {
+        $packed = @inet_pton($ip);
+
+        return is_string($packed) && str_starts_with($packed, "\x00\x64\xff\x9b".str_repeat("\x00", 8))
+            ? (string) inet_ntop(substr($packed, 12))
+            : null;
     }
 
     /**

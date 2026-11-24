@@ -15,8 +15,11 @@ final class SsrfOptions
         // IPv6
         '::/128',           // unspecified address
         '::1/128',          // loopback
+        '::/96',            // IPv4-compatible IPv6, deprecated (::7f00:1 = 127.0.0.1)
         '::ffff:0:0/96',    // IPv4-mapped IPv6 (blocks ::ffff:127.0.0.1, etc.)
+        '64:ff9b:1::/48',   // local-use NAT64 (RFC 8215), embeds an IPv4 address
         '100::/64',         // discard prefix (RFC 6666)
+        '2001::/32',        // Teredo, embeds IPv4 addresses
         '2001:db8::/32',    // documentation range
         '2002::/16',        // 6to4 (can embed private IPv4: 2002:c0a8:0101:: = 192.168.1.1)
         'fc00::/7',         // unique local (includes fd00::/8)

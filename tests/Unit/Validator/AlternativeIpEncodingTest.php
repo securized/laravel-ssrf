@@ -12,6 +12,7 @@ declare(strict_types=1);
  * Sources: PayloadsAllTheThings, HackTricks URL Format Bypass
  */
 
+use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
@@ -71,4 +72,34 @@ describe('new IPv6 blacklist ranges', function (): void {
     test('100::1 (discard prefix RFC 6666) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://[100::1]/'))->toBeFalse());
 
     test('fd00:ec2::254 (AWS IPv6 metadata) is blocked by fc00::/7', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://[fd00:ec2::254]/'))->toBeFalse());
+});
+
+describe('other IPv6 forms that carry an IPv4 address', function (): void {
+    test('is blocked', function (string $ip): void {
+        expect((new SsrfValidator(new SsrfOptions))->isSafe("http://[{$ip}]/"))->toBeFalse();
+    })->with([
+        'NAT64 metadata' => ['64:ff9b::a9fe:a9fe'],
+        'NAT64 loopback' => ['64:ff9b::7f00:1'],
+        'NAT64 private' => ['64:ff9b::c0a8:101'],
+        'local-use NAT64 metadata' => ['64:ff9b:1::a9fe:a9fe'],
+        'IPv4-compatible loopback' => ['::7f00:1'],
+        'IPv4-compatible metadata' => ['::a9fe:a9fe'],
+        'Teredo' => ['2001:0:4136:e378:8000:63bf:3fff:fdd2'],
+    ]);
+
+    test('a NAT64 address for a public IPv4 host is allowed, as DNS64 networks resolve every IPv4-only host this way', function (): void {
+        expect((new SsrfValidator(new SsrfOptions))->validate('http://[64:ff9b::5db8:d822]/')['ips'])->toBe(['64:ff9b::5db8:d822']);
+    });
+
+    test('a NAT64 address is checked against a custom IPv4 blacklist entry', function (): void {
+        $options = (new SsrfOptions)->withBlacklistIps(['93.184.216.0/24']);
+
+        expect((new SsrfValidator($options))->isSafe('http://[64:ff9b::5db8:d822]/'))->toBeFalse();
+    });
+
+    test('a hostname resolving to a NAT64 form of an internal address is blocked', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('rebind.test', '64:ff9b::a9fe:a9fe');
+
+        expect((new SsrfValidator(new SsrfOptions, $dns))->isSafe('http://rebind.test/'))->toBeFalse();
+    });
 });

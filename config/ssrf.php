@@ -99,8 +99,11 @@ return [
             // IPv6
             '::/128',           // Unspecified address
             '::1/128',          // Loopback
+            '::/96',            // IPv4-compatible IPv6, deprecated (::7f00:1 = 127.0.0.1)
             '::ffff:0:0/96',    // IPv4-mapped IPv6 (blocks ::ffff:127.0.0.1 etc.)
+            '64:ff9b:1::/48',   // Local-use NAT64 (RFC 8215), embeds an IPv4 address
             '100::/64',         // Discard prefix (RFC 6666)
+            '2001::/32',        // Teredo, embeds IPv4 addresses
             '2001:db8::/32',    // Documentation range
             '2002::/16',        // 6to4 (can embed private IPv4)
             'fc00::/7',         // Unique local (RFC 4193, includes fd00::/8)

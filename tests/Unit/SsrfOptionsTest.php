@@ -54,6 +54,7 @@ describe('SsrfOptions defaults', function (): void {
         expect($ips)->toContain('::1/128');
         expect($ips)->toContain('::ffff:0:0/96');
         expect($ips)->toContain('2002::/16');
+        expect($ips)->toContain('::/96', '64:ff9b:1::/48', '2001::/32');
         expect($ips)->toContain('fc00::/7');
         expect($ips)->toContain('fe80::/10');
         expect($ips)->toContain('ff00::/8');

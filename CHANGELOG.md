@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Security
+
+- IPv6 addresses that carry an IPv4 address are now blocked in three more forms: IPv4-compatible (`::/96`), Teredo (`2001::/32`) and local-use NAT64 (`64:ff9b:1::/48`). An address in the well-known NAT64 prefix (`64:ff9b::/96`) is checked against the blacklist as the IPv4 address it forwards to, so `64:ff9b::a9fe:a9fe` is blocked as `169.254.169.254` while public hosts still work on DNS64 networks.
+
 ## 1.1.0 - 2026-11-24
 
 ### Changed
