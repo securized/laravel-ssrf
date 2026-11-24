@@ -2,23 +2,12 @@
 
 declare(strict_types=1);
 
-/**
- * Numeric hosts that are not dotted-decimal IPv4.
- *
- * curl reads 0177.0.0.1, 0x7f000001, 2130706433 and 127.1 as 127.0.0.1, but
- * PHP, libc and curl disagree on the edge cases from one build to the next
- * (trailing dots, leading zeros, hex in gethostbyname). Asking DNS about them
- * is worse: a resolver that answers with a public IP gets the URL approved
- * while curl connects to loopback. They must be rejected before any lookup.
- */
-
 use Securized\Ssrf\Dns\DnsResolver;
 use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Exceptions\InvalidUrlException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
-/** A resolver that answers every name with a public IP and records what it was asked. */
 function answeringResolver(array &$asked): DnsResolver
 {
     return new class($asked) implements DnsResolver

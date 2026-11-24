@@ -152,12 +152,8 @@ readonly class SsrfValidator
     }
 
     /**
-     * A host ending in a numeric label is an IPv4 address, never a DNS name:
-     * no top-level domain is all-numeric. Octal, hex, integer and shorthand
-     * forms (0177.0.0.1, 0x7f000001, 2130706433, 127.1) are read differently
-     * by PHP, libc and curl depending on the build, so they are rejected
-     * instead of being interpreted or looked up. Same rule as the WHATWG URL
-     * "ends in a number" check.
+     * No TLD is all-numeric, so a host ending in a numeric label is an IPv4 address.
+     * PHP, libc and curl read the non-canonical forms differently per build: reject, never interpret.
      */
     private function isNonCanonicalIpv4(string $host): bool
     {

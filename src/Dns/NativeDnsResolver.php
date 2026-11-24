@@ -17,9 +17,8 @@ class NativeDnsResolver implements DnsResolver
             ->values()
             ->all();
 
-        // Fallback: dns_get_record only asks DNS, while curl resolves through
-        // libc, which also reads the hosts file. Catch those names so the
-        // blacklist can reject them.
+        // dns_get_record only asks DNS; curl resolves through libc, which also
+        // reads the hosts file.
         if ($ips === []) {
             $resolved = @gethostbyname($host);
             if ($resolved !== $host && filter_var($resolved, FILTER_VALIDATE_IP)) {

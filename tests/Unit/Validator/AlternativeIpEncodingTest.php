@@ -16,9 +16,6 @@ use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
 describe('decimal/hex/octal IPv4 representations', function (): void {
-    // These bypass filter_var(FILTER_VALIDATE_IP) but curl reads them as
-    // real IPs. The validator rejects them outright, without a DNS lookup.
-    // See NonCanonicalIpv4Test for the cases that pin that down.
 
     test('decimal 2130706433 (= 127.0.0.1) is blocked', fn () => expect((new SsrfValidator(new SsrfOptions))->isSafe('http://2130706433/'))->toBeFalse());
 
