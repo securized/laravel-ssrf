@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-Initial release.
+## 1.1.0 - 2026-11-24
 
 ### Changed
 
@@ -32,3 +32,7 @@ Initial release.
 - A bracketed host that is not an IPv6 address is now rejected.
 - With `whitelist_ips` set, a host is now rejected unless every address it resolves to is whitelisted, except for requests that are actually pinned (the middleware and `Ssrf::safeUrl()` with `pin_dns` on). Previously one whitelisted address was enough, while curl could connect to any of the others.
 - Numeric hosts that are not dotted-decimal IPv4 (`0177.0.0.1`, `0x7f000001`, `2130706433`, `127.1`, `127.0.0.1.`) are now rejected before any DNS lookup. Previously they were looked up, so a resolver that answered for one could get the URL approved while curl connected to the address it encodes.
+
+## 1.0.0 - 2026-07-22
+
+Initial release.
