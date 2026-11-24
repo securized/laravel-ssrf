@@ -13,6 +13,7 @@ declare(strict_types=1);
  */
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -22,6 +23,18 @@ use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
+
+// The middleware reads the same proxy variables curl does, so neither a
+// developer's shell nor another test may decide how these requests are pinned.
+function clearProxyEnvironment(): void
+{
+    foreach (['http_proxy', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
+        putenv($name);
+    }
+}
+
+beforeEach(fn () => clearProxyEnvironment());
+afterEach(fn () => clearProxyEnvironment());
 
 function pinnedClient(SsrfOptions $opts, FakeDnsResolver $dns, array &$history = []): Client
 {
@@ -301,5 +314,106 @@ describe('middleware fallback to a URL rewrite', function (): void {
 
         expect((string) $history[0]['request']->getUri())->toBe('http://93.184.216.34:8080/path')
             ->and($history[0]['request']->getHeaderLine('Host'))->toBe('example.com:8080');
+    });
+
+    test('an IDN host is sent as punycode in the Host header', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('bücher.example', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://bücher.example/path', ['stream' => true]);
+
+        expect($history[0]['request']->getHeaderLine('Host'))->toBe('xn--bcher-kva.example');
+    })->skip(! function_exists('idn_to_ascii'), 'ext-intl is not installed');
+
+    test('the rewrite option pins by URL for handlers that ignore curl options', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)
+            ->get('https://example.com/path', [SsrfProtectionMiddleware::REWRITE_OPTION => true]);
+
+        expect((string) $history[0]['request']->getUri())->toBe('https://93.184.216.34/path')
+            ->and($history[0]['request']->getHeaderLine('Host'))->toBe('example.com')
+            ->and($history[0]['options'])->not->toHaveKey('curl');
+    });
+});
+
+describe('middleware keeps the pin where curl would miss the entry', function (): void {
+    test('a trailing dot is dropped from the request so the entry matches on every libcurl', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('example.com.', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get('https://example.com./path');
+
+        expect((string) $history[0]['request']->getUri())->toBe('https://example.com/path')
+            ->and($history[0]['options']['curl'][CURLOPT_RESOLVE])->toBe([pinEntry('example.com:443:93.184.216.34')]);
+    });
+
+    test('with the DNS cache disabled the entry is permanent, as an expiring one would be stale at once', function (mixed $timeout): void {
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)
+            ->get('https://example.com/', ['curl' => [CURLOPT_DNS_CACHE_TIMEOUT => $timeout]]);
+
+        expect($history[0]['options']['curl'][CURLOPT_RESOLVE])->toBe(['example.com:443:93.184.216.34']);
+    })->with([0, '0']);
+
+    test('a positive DNS cache timeout keeps the expiring entry', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)
+            ->get('https://example.com/', ['curl' => [CURLOPT_DNS_CACHE_TIMEOUT => 30]]);
+
+        expect($history[0]['options']['curl'][CURLOPT_RESOLVE])->toBe([pinEntry('example.com:443:93.184.216.34')]);
+    });
+
+    test('a percent-encoded host is rejected before it can be pinned under the wrong name', function (string $url): void {
+        $dns = (new FakeDnsResolver)
+            ->addRecord('%61.attacker.test', '93.184.216.34')
+            ->addRecord('a%2eattacker.test', '93.184.216.34');
+        $history = [];
+
+        expect(fn () => pinnedClient(unpinnedOpts(true), $dns, $history)->get($url))
+            ->toThrow(RequestException::class)
+            ->and($history)->toBe([]);
+    })->with(['http://%61.attacker.test/', 'http://a%2eattacker.test/']);
+});
+
+describe('middleware honours no_proxy when pinning', function (): void {
+    test('a host exempted by the proxy option is pinned directly with the proxy switched off', function (string $url): void {
+        $dns = (new FakeDnsResolver)->addRecord('internal.example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get($url, ['proxy' => [
+            'http' => 'http://proxy.test:3128',
+            'https' => 'http://proxy.test:3128',
+            'no' => ['.example.com'],
+        ]]);
+
+        expect($history[0]['request']->getUri()->getHost())->toBe('internal.example.com')
+            ->and($history[0]['options']['proxy'])->toBe('')
+            ->and($history[0]['options']['curl'][CURLOPT_PROXY])->toBe('')
+            ->and($history[0]['options']['curl'])->toHaveKey(CURLOPT_RESOLVE)->not->toHaveKey(CURLOPT_CONNECT_TO);
+    })->with(['http://internal.example.com/', 'https://internal.example.com/']);
+
+    test('a host exempted by the environment is pinned directly as well', function (): void {
+        putenv('http_proxy=http://proxy.test:3128');
+        putenv('no_proxy=other.test, internal.example.com');
+
+        $dns = (new FakeDnsResolver)->addRecord('internal.example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://internal.example.com/');
+
+        expect($history[0]['request']->getUri()->getHost())->toBe('internal.example.com')
+            ->and($history[0]['options']['curl'][CURLOPT_PROXY])->toBe('')
+            ->and($history[0]['options']['curl'])->toHaveKey(CURLOPT_RESOLVE);
+    });
+
+    test('a host that is not exempted still goes through the proxy path', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('example.org', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://example.org/', ['proxy' => [
+            'http' => 'http://proxy.test:3128',
+            'no' => ['.example.com'],
+        ]]);
+
+        expect((string) $history[0]['request']->getUri())->toBe('http://93.184.216.34/')
+            ->and($history[0]['options']['proxy'])->toBeArray();
     });
 });

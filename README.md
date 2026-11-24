@@ -195,6 +195,8 @@ return [
 
 An **empty whitelist** for a type means "allow all" (subject to the blacklist). A **non-empty whitelist** means only the listed values are permitted. The blacklist always takes precedence.
 
+A hostname can resolve to several addresses. With an IP whitelist and `pin_dns` off, every one of them must be whitelisted, since curl is free to connect to any of them. With `pin_dns` on, one whitelisted address is enough and the request is pinned to the whitelisted ones only.
+
 ### Domain patterns
 
 Domain entries are literal hostnames with `*` as a wildcard, matched
@@ -225,6 +227,10 @@ IP entries support CIDR notation for both IPv4 and IPv6:
     ],
 ],
 ```
+
+### Hostnames
+
+curl percent-decodes the host before resolving it, so `%61.example.com` would be validated under one name and fetched as `a.example.com`. A hostname may therefore only contain letters, digits, `.`, `-` and `_` (or non-ASCII characters, for IDN), and may not start with `-` or `.`. Anything else throws `InvalidUrlException`. A bracketed host must be a valid IPv6 address.
 
 ### Numeric hosts
 
@@ -273,9 +279,24 @@ Every validated address is pinned, so curl can still fail over between them. Wit
 - **HTTP through a proxy, the `stream` option, or no curl extension:** the hostname in the URL is replaced with the IP and the `Host` header is set. HTTPS certificate validation may fail for `stream` requests and without curl. Plain HTTP through a proxy is rewritten instead of tunnelled because `CURLOPT_CONNECT_TO` makes curl send `CONNECT`, which proxies commonly refuse for port 80.
 - **IDN hostnames:** the request is sent with the punycode name, which needs the intl extension. Without it the URL is rewritten as above.
 
-Proxy detection is deliberately broad. A request counts as proxied when the Guzzle `proxy` option, `CURLOPT_PROXY`, or one of the proxy environment variables curl reads (`http_proxy`, `https_proxy`, `all_proxy`) applies to its scheme, and `no_proxy` lists are ignored. A request that ends up going direct is then still pinned, only to the first validated address, whereas missing a proxy would lose the pin.
+Proxy detection is deliberately broad. A request counts as proxied when the Guzzle `proxy` option, `CURLOPT_PROXY`, or one of the proxy environment variables curl reads (`http_proxy`, `https_proxy`, `all_proxy`) applies to its scheme. Treating a direct request as proxied still pins it, whereas missing a proxy would lose the pin.
 
-If you configure a custom non-curl handler yourself, pinning is not applied.
+A host exempted by `no_proxy` (the `no` key of the `proxy` option, or the `no_proxy` environment variable) is pinned as a direct request, and the middleware switches the proxy off for that request explicitly so the exemption still holds once the request is pinned.
+
+The middleware cannot see which handler a client was built with. If you pass your own non-curl handler (a `StreamHandler`, a coroutine handler), curl options are ignored and the request would go out unpinned, so tell the middleware to pin by rewriting the URL instead:
+
+```php
+use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
+
+new Client([
+    'handler' => $stackWithYourHandler,
+    SsrfProtectionMiddleware::REWRITE_OPTION => true,
+]);
+```
+
+HTTPS certificate validation may fail in that mode, as the URL carries the IP.
+
+If a request sets `CURLOPT_DNS_CACHE_TIMEOUT` to `0`, its pin is added as a permanent entry, because an expiring one would be discarded before curl used it. That entry stays on the curl handle for as long as the handle is reused.
 
 `Ssrf::safeUrl()` and `Ssrf::validate()` have no request to attach curl options to, so with `pin_dns` enabled they still return the URL with the IP substituted for the hostname.
 

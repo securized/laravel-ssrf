@@ -22,6 +22,12 @@ const SERVER_HOST = '127.0.0.1';
 const SERVER_PORT = 18923;
 const SERVER_URL = 'http://'.SERVER_HOST.':'.SERVER_PORT;
 
+beforeEach(function (): void {
+    foreach (['http_proxy', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
+        putenv($name);
+    }
+});
+
 beforeAll(function (): void {
     $serverScript = __DIR__.'/server.php';
     $cmd = sprintf(

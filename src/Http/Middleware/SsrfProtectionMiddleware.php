@@ -7,6 +7,7 @@ namespace Securized\Ssrf\Http\Middleware;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Utils;
 use Psr\Http\Message\RequestInterface;
 use Securized\Ssrf\Exceptions\SsrfException;
 use Securized\Ssrf\SsrfOptions;
@@ -15,6 +16,9 @@ use Securized\Ssrf\SsrfValidator;
 class SsrfProtectionMiddleware
 {
     private const DEFAULT_PORTS = ['http' => 80, 'https' => 443];
+
+    /** Guzzle request option: pin by replacing the URL host, for clients using a handler that ignores curl options. */
+    public const REWRITE_OPTION = 'ssrf_pin_rewrite';
 
     public function __construct(
         private readonly SsrfValidator $validator,
@@ -56,20 +60,33 @@ class SsrfProtectionMiddleware
     {
         $uri = $request->getUri();
         $scheme = strtolower($uri->getScheme());
-        $proxied = $this->mayUseProxy($options, $scheme);
         $asciiHost = $this->asciiHost($host);
+        $usesCurl = $this->usesCurl($options);
+        $proxied = $this->mayUseProxy($options, $scheme, $usesCurl);
+
+        // Once the URL carries the IP, no_proxy can no longer match the name,
+        // so a host it exempts is sent direct explicitly.
+        if ($proxied && $this->exemptFromProxy($options, $asciiHost ?? $host)) {
+            $options['proxy'] = '';
+            if ($usesCurl) {
+                $options['curl'][CURLOPT_PROXY] = '';
+            }
+            $proxied = false;
+        }
 
         // Proxied plain HTTP is rewritten too: connect-to would force CONNECT,
         // which proxies commonly refuse for port 80.
-        if (! $this->usesCurl($options) || $asciiHost === null || ($proxied && $scheme !== 'https')) {
-            $authority = $uri->getPort() === null ? $host : $host.':'.$uri->getPort();
+        if (! $usesCurl || $asciiHost === null || ($proxied && $scheme !== 'https')) {
+            $authority = ($asciiHost ?? $host).($uri->getPort() === null ? '' : ':'.$uri->getPort());
 
             return [$request->withUri($uri->withHost($this->bracketIpv6($ips[0])))->withHeader('Host', $authority), $options];
         }
 
-        // curl matches resolve and connect-to entries against the punycode name.
-        if ($asciiHost !== $host) {
-            $request = $request->withUri($uri->withHost($asciiHost));
+        // curl matches resolve and connect-to entries against the punycode
+        // name, and before 7.82 against the name without its trailing dot.
+        $curlHost = str_ends_with($asciiHost, '.') ? substr($asciiHost, 0, -1) : $asciiHost;
+        if ($curlHost !== $host) {
+            $request = $request->withUri($uri->withHost($curlHost));
         }
 
         $port = $uri->getPort() ?? self::DEFAULT_PORTS[$scheme] ?? 80;
@@ -78,20 +95,25 @@ class SsrfProtectionMiddleware
             // A proxy resolves the name itself and never consults CURLOPT_RESOLVE.
             // curl uses the first matching connect-to entry, so ours goes first.
             $options['curl'][CURLOPT_CONNECT_TO] = [
-                sprintf('%s:%d:%s:%d', $asciiHost, $port, $this->bracketIpv6($ips[0]), $port),
+                sprintf('%s:%d:%s:%d', $curlHost, $port, $this->bracketIpv6($ips[0]), $port),
                 ...($options['curl'][CURLOPT_CONNECT_TO] ?? []),
             ];
 
             return [$request, $options];
         }
 
+        // An expiring entry is stale at once when the DNS cache timeout is 0,
+        // and curl would then resolve the name itself.
+        $cacheDisabled = isset($options['curl'][CURLOPT_DNS_CACHE_TIMEOUT])
+            && (int) $options['curl'][CURLOPT_DNS_CACHE_TIMEOUT] === 0;
+
         // Appended last so it overrides any caller-supplied entry for this host:port.
         $options['curl'][CURLOPT_RESOLVE] = [
             ...($options['curl'][CURLOPT_RESOLVE] ?? []),
             sprintf(
                 '%s%s:%d:%s',
-                self::expiringPrefix(),
-                $asciiHost,
+                $cacheDisabled ? '' : self::expiringPrefix(),
+                $curlHost,
                 $port,
                 implode(',', array_map($this->bracketIpv6(...), $ips)),
             ),
@@ -110,12 +132,17 @@ class SsrfProtectionMiddleware
     }
 
     /**
-     * Mirrors GuzzleHttp\Utils::chooseHandler().
+     * Mirrors GuzzleHttp\Utils::chooseHandler(). A handler passed to the
+     * client cannot be seen from here, hence the opt-out.
      *
      * @param  array<string, mixed>  $options
      */
     private function usesCurl(array $options): bool
     {
+        if (! empty($options[self::REWRITE_OPTION])) {
+            return false;
+        }
+
         if (! function_exists('curl_exec') && ! function_exists('curl_multi_exec')) {
             return false;
         }
@@ -124,14 +151,14 @@ class SsrfProtectionMiddleware
     }
 
     /**
-     * Errs towards true, hence no_proxy is ignored: a direct request treated
-     * as proxied is still pinned, a missed proxy is not.
+     * Errs towards true: a direct request treated as proxied is still pinned,
+     * a missed proxy is not.
      *
      * @param  array<string, mixed>  $options
      */
-    private function mayUseProxy(array $options, string $scheme): bool
+    private function mayUseProxy(array $options, string $scheme, bool $usesCurl): bool
     {
-        if (! empty($options['curl'][CURLOPT_PROXY])) {
+        if ($usesCurl && ! empty($options['curl'][CURLOPT_PROXY])) {
             return true;
         }
 
@@ -147,10 +174,26 @@ class SsrfProtectionMiddleware
         }
 
         // libcurl reads these itself when it is not handed a proxy.
-        return array_any(
+        return $usesCurl && array_any(
             [$scheme.'_proxy', strtoupper($scheme).'_PROXY', 'all_proxy', 'ALL_PROXY'],
             fn (string $name): bool => ! in_array(getenv($name), [false, ''], true),
         );
+    }
+
+    /** @param  array<string, mixed>  $options */
+    private function exemptFromProxy(array $options, string $host): bool
+    {
+        $proxy = $options['proxy'] ?? null;
+        $patterns = is_array($proxy) ? (array) ($proxy['no'] ?? []) : [];
+
+        // libcurl applies these to any proxy, including one set explicitly.
+        foreach (['no_proxy', 'NO_PROXY'] as $name) {
+            $patterns = [...$patterns, ...explode(',', str_replace(' ', '', (string) getenv($name)))];
+        }
+
+        $patterns = array_values(array_filter($patterns, fn (mixed $pattern): bool => is_string($pattern) && $pattern !== ''));
+
+        return $patterns !== [] && Utils::isHostInNoProxy($host, $patterns);
     }
 
     private function asciiHost(string $host): ?string
