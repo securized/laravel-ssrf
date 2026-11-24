@@ -31,11 +31,9 @@ return [
     | Pin DNS
     |--------------------------------------------------------------------------
     |
-    | When true, outgoing requests connect only to the validated IP addresses
-    | via CURLOPT_RESOLVE, preventing DNS rebinding attacks. The URL keeps
-    | its hostname, so the Host header, SNI and certificate checks are
-    | unaffected. Proxied and non-curl requests are pinned differently, see
-    | "DNS Pinning" in the README.
+    | When true, outgoing requests connect only to the validated IP addresses,
+    | preventing DNS rebinding attacks. The URL keeps its hostname, so TLS is
+    | unaffected. See "DNS Pinning" in the README.
     |
     */
     'pin_dns' => false,

@@ -128,8 +128,7 @@ describe('DNS pinning with real request', function (): void {
     });
 
     test('a pinned hostname connects to the validated IP and keeps its Host header', function (): void {
-        // "pinned.invalid" cannot resolve through real DNS, so reaching the
-        // server proves curl used the CURLOPT_RESOLVE entry for the connection.
+        // "pinned.invalid" cannot resolve through real DNS, so reaching the server proves the pin was used.
         $opts = (new SsrfOptions)
             ->withPinDns()
             ->withBlacklistIps([])
