@@ -13,6 +13,7 @@ declare(strict_types=1);
  */
 
 use Securized\Ssrf\Dns\FakeDnsResolver;
+use Securized\Ssrf\Exceptions\InvalidIpException;
 use Securized\Ssrf\SsrfOptions;
 use Securized\Ssrf\SsrfValidator;
 
@@ -101,5 +102,67 @@ describe('other IPv6 forms that carry an IPv4 address', function (): void {
         $dns = (new FakeDnsResolver)->addRecord('rebind.test', '64:ff9b::a9fe:a9fe');
 
         expect((new SsrfValidator(new SsrfOptions, $dns))->isSafe('http://rebind.test/'))->toBeFalse();
+    });
+});
+
+describe('embedded IPv4 addresses are checked wherever they are carried', function (): void {
+    // What a config published before these ranges were added still contains.
+    $published = fn (): SsrfOptions => (new SsrfOptions)->withBlacklistIps(array_values(array_diff(
+        (new SsrfOptions)->blacklistIps,
+        ['::/96', '::ffff:0:0/96', '::ffff:0:0:0/96', '64:ff9b:1::/48', '2001::/32', '2002::/16'],
+    )));
+
+    test('an internal target is blocked by the IPv4 lists alone', function (string $ip) use ($published): void {
+        expect((new SsrfValidator($published()))->isSafe("http://[{$ip}]/"))->toBeFalse();
+    })->with([
+        'IPv4-compatible' => ['::a9fe:a9fe'],
+        'IPv4-mapped' => ['::ffff:a9fe:a9fe'],
+        'IPv4-translated' => ['::ffff:0:a9fe:a9fe'],
+        'NAT64' => ['64:ff9b::a9fe:a9fe'],
+        '6to4' => ['2002:a9fe:a9fe::1'],
+        'Teredo server' => ['2001:0:a9fe:a9fe::1'],
+        'Teredo client, inverted' => ['2001:0:5db8:d822::5601:5601'],
+        'ISATAP, private' => ['2a00:1450::5efe:a9fe:a9fe'],
+        'ISATAP, global bit' => ['2a00:1450::200:5efe:7f00:1'],
+    ]);
+
+    test('IPv4-translated addresses are blacklisted by default', function (): void {
+        expect((new SsrfValidator(new SsrfOptions))->isSafe('http://[::ffff:0:5db8:d822]/'))->toBeFalse();
+    });
+
+    test('an ISATAP address carrying a public IPv4 address is left alone', function (): void {
+        expect((new SsrfValidator(new SsrfOptions))->isSafe('http://[2a00:1450::200:5efe:5db8:d822]/'))->toBeTrue();
+    });
+
+    test('a network-specific NAT64 prefix is unwrapped once configured', function (string $prefix, string $internal, string $public): void {
+        $validator = new SsrfValidator((new SsrfOptions)->withNat64Prefixes(['64:ff9b::/96', $prefix]));
+
+        expect((new SsrfValidator(new SsrfOptions))->isSafe("http://[{$internal}]/"))->toBeTrue()
+            ->and($validator->isSafe("http://[{$internal}]/"))->toBeFalse()
+            ->and($validator->isSafe("http://[{$public}]/"))->toBeTrue();
+    })->with([
+        '/96' => ['2a00:1450:64::/96', '2a00:1450:64::a9fe:a9fe', '2a00:1450:64::5db8:d822'],
+        '/64' => ['2a00:1450:64:1::/64', '2a00:1450:64:1:a9:fea9:fe00:0', '2a00:1450:64:1:5d:b8d8:2200:0'],
+        '/48' => ['2a00:1450:64::/48', '2a00:1450:64:a9fe:a9:fe00::', '2a00:1450:64:5db8:d8:2200::'],
+        '/32' => ['2a00:1450::/32', '2a00:1450:a9fe:a9fe::', '2a00:1450:5db8:d822::'],
+    ]);
+
+    test('unwrapping follows the worked examples in RFC 6052 section 2.4', function (string $prefix, string $address): void {
+        $options = (new SsrfOptions)->withBlacklistIps(['192.0.2.33'])->withNat64Prefixes([$prefix]);
+
+        expect(fn () => (new SsrfValidator($options))->validate("http://[{$address}]/"))
+            ->toThrow(InvalidIpException::class, '(carrying 192.0.2.33)');
+    })->with([
+        ['2001:db8::/32', '2001:db8:c000:221::'],
+        ['2001:db8:100::/40', '2001:db8:1c0:2:21::'],
+        ['2001:db8:122::/48', '2001:db8:122:c000:2:2100::'],
+        ['2001:db8:122:300::/56', '2001:db8:122:3c0:0:221::'],
+        ['2001:db8:122:344::/64', '2001:db8:122:344:c0:2:2100::'],
+        ['2001:db8:122:344::/96', '2001:db8:122:344::192.0.2.33'],
+    ]);
+
+    test('the message names the address that was resolved and the one it carries', function (): void {
+        expect(fn () => (new SsrfValidator(new SsrfOptions))->validate('http://[64:ff9b::a9fe:a9fe]/'))
+            ->toThrow(InvalidIpException::class, 'resolves to "64:ff9b::a9fe:a9fe" (carrying 169.254.169.254) which matches blacklisted range "169.254.0.0/16"');
     });
 });

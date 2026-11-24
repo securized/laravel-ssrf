@@ -61,3 +61,19 @@ describe('IP whitelist without pinning', function (): void {
             ->and(fn () => $validator->validate('https://mixed.example/'))->toThrow(InvalidIpException::class);
     });
 });
+
+describe('IP whitelist behind NAT64', function (): void {
+    test('a NAT64 address is whitelisted by the IPv4 address it forwards to', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('ok.example', '64:ff9b::5db8:d822');
+        $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24']);
+
+        expect((new SsrfValidator($options, $dns))->validate('https://ok.example/')['ips'])->toBe(['64:ff9b::5db8:d822']);
+    });
+
+    test('a NAT64 address forwarding elsewhere is still rejected', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('other.example', '64:ff9b::808:808');
+        $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24']);
+
+        expect((new SsrfValidator($options, $dns))->isSafe('https://other.example/'))->toBeFalse();
+    });
+});

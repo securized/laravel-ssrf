@@ -214,9 +214,9 @@ readonly class SsrfValidator
 
         if ($opts->whitelistIps !== []) {
             $whitelist = collect($opts->whitelistIps);
-            $allowed = $resolved->filter(
-                fn (string $ip) => $whitelist->contains(fn (string $range) => $this->cidrMatch($ip, $range))
-            )->values();
+            $allowed = $resolved->filter(fn (string $ip) => collect([$ip, ...$this->embeddedIpv4($ip)])->contains(
+                fn (string $candidate) => $whitelist->contains(fn (string $range) => $this->cidrMatch($candidate, $range))
+            ))->values();
 
             // Unpinned, curl may connect to any address the name resolves to.
             if ($allowed->isEmpty() || (! $pinned && $allowed->count() !== $resolved->count())) {
@@ -226,31 +226,72 @@ readonly class SsrfValidator
             }
         }
 
-        $resolved->merge($resolved->map($this->nat64Target(...))->filter())->each(function (string $ip) use ($host, $opts): void {
-            collect($opts->blacklistIps)->each(function (string $range) use ($ip, $host): void {
-                if ($this->cidrMatch($ip, $range)) {
-                    throw new InvalidIpException(
-                        sprintf('Host "%s" resolves to "%s" which matches blacklisted range "%s".', $host, $ip, $range)
-                    );
+        foreach ($ips as $ip) {
+            foreach ([$ip, ...$this->embeddedIpv4($ip)] as $candidate) {
+                foreach ($opts->blacklistIps as $range) {
+                    if ($this->cidrMatch($candidate, $range)) {
+                        throw new InvalidIpException(sprintf(
+                            'Host "%s" resolves to "%s"%s which matches blacklisted range "%s".',
+                            $host, $ip, $candidate === $ip ? '' : sprintf(' (carrying %s)', $candidate), $range
+                        ));
+                    }
                 }
-            });
-        });
+            }
+        }
 
         return $allowed->all();
     }
 
     /**
-     * A NAT64 gateway forwards 64:ff9b::/96 to the IPv4 address in its last 32
-     * bits (RFC 6052). The range cannot simply be blacklisted: behind DNS64
-     * every IPv4-only host resolves into it.
+     * IPv4 addresses an IPv6 address forwards to once a transition mechanism
+     * unwraps it. They are checked like the address itself, so the IPv4 lists
+     * cover these forms without naming each prefix. A NAT64 prefix cannot be
+     * blacklisted outright: behind DNS64 every IPv4-only host resolves into it.
+     *
+     * @return list<string>
      */
-    private function nat64Target(string $ip): ?string
+    private function embeddedIpv4(string $ip): array
     {
         $packed = @inet_pton($ip);
+        if (! is_string($packed) || strlen($packed) !== 16) {
+            return [];
+        }
 
-        return is_string($packed) && str_starts_with($packed, "\x00\x64\xff\x9b".str_repeat("\x00", 8))
-            ? (string) inet_ntop(substr($packed, 12))
-            : null;
+        $found = [];
+        $zeros = fn (int $bytes): string => str_repeat("\0", $bytes);
+
+        // IPv4-compatible, IPv4-mapped and IPv4-translated.
+        if (in_array(substr($packed, 0, 12), [$zeros(12), $zeros(10)."\xff\xff", $zeros(8)."\xff\xff\0\0"], true)) {
+            $found[] = substr($packed, 12);
+        }
+
+        if (str_starts_with($packed, "\x20\x02")) {
+            $found[] = substr($packed, 2, 4);
+        }
+
+        // Teredo carries its server, and its client with every bit inverted.
+        if (str_starts_with($packed, "\x20\x01\0\0")) {
+            $found[] = substr($packed, 4, 4);
+            $found[] = substr($packed, 12) ^ "\xff\xff\xff\xff";
+        }
+
+        // ISATAP, in any prefix.
+        if (in_array(substr($packed, 8, 4), ["\0\0\x5e\xfe", "\x02\0\x5e\xfe"], true)) {
+            $found[] = substr($packed, 12);
+        }
+
+        foreach ($this->options->nat64Prefixes as $prefix) {
+            if ($this->cidrMatch($ip, $prefix)) {
+                // RFC 6052: the address follows the prefix, skipping byte 8.
+                $bytes = '';
+                for ($i = intdiv((int) explode('/', $prefix)[1], 8); strlen($bytes) < 4 && $i < 16; $i++) {
+                    $bytes .= $i === 8 ? '' : $packed[$i];
+                }
+                $found[] = str_pad($bytes, 4, "\0");
+            }
+        }
+
+        return array_values(array_unique(array_map(fn (string $bytes): string => (string) inet_ntop($bytes), $found)));
     }
 
     /**
@@ -273,7 +314,9 @@ readonly class SsrfValidator
     private function cidrMatch(string $ip, string $cidr): bool
     {
         if (! str_contains($cidr, '/')) {
-            return $ip === $cidr;
+            $packed = @inet_pton($ip);
+
+            return $packed !== false && $packed === @inet_pton($cidr);
         }
 
         [$subnet, $prefix] = explode('/', $cidr, 2);

@@ -17,6 +17,7 @@ final class SsrfOptions
         '::1/128',          // loopback
         '::/96',            // IPv4-compatible IPv6, deprecated (::7f00:1 = 127.0.0.1)
         '::ffff:0:0/96',    // IPv4-mapped IPv6 (blocks ::ffff:127.0.0.1, etc.)
+        '::ffff:0:0:0/96',  // IPv4-translated (SIIT)
         '64:ff9b:1::/48',   // local-use NAT64 (RFC 8215), embeds an IPv4 address
         '100::/64',         // discard prefix (RFC 6666)
         '2001::/32',        // Teredo, embeds IPv4 addresses
@@ -36,6 +37,7 @@ final class SsrfOptions
      * @param  list<int>  $blacklistPorts
      * @param  list<string>  $blacklistDomains
      * @param  list<string>  $blacklistSchemes
+     * @param  list<string>  $nat64Prefixes  RFC 6052 prefixes whose addresses are checked as the IPv4 address they forward to
      */
     public function __construct(
         public readonly bool $sendCredentials = false,
@@ -48,6 +50,7 @@ final class SsrfOptions
         public readonly array $blacklistPorts = [],
         public readonly array $blacklistDomains = [],
         public readonly array $blacklistSchemes = [],
+        public readonly array $nat64Prefixes = ['64:ff9b::/96'],
     ) {}
 
     /** @param array<string, mixed> $config */
@@ -64,6 +67,7 @@ final class SsrfOptions
             blacklistPorts: array_map('intval', $config['blacklist']['ports'] ?? []),
             blacklistDomains: array_map('strval', $config['blacklist']['domains'] ?? []),
             blacklistSchemes: array_map('strval', $config['blacklist']['schemes'] ?? []),
+            nat64Prefixes: array_map('strval', $config['nat64_prefixes'] ?? ['64:ff9b::/96']),
         );
     }
 
@@ -125,6 +129,12 @@ final class SsrfOptions
         return new self(...[...$this->all(), 'blacklistSchemes' => $schemes]);
     }
 
+    /** @param list<string> $prefixes */
+    public function withNat64Prefixes(array $prefixes): self
+    {
+        return new self(...[...$this->all(), 'nat64Prefixes' => $prefixes]);
+    }
+
     public function addBlacklistIp(string ...$ips): self
     {
         return $this->withBlacklistIps(array_values(array_unique([...$this->blacklistIps, ...$ips])));
@@ -159,6 +169,7 @@ final class SsrfOptions
             'blacklistPorts' => $this->blacklistPorts,
             'blacklistDomains' => $this->blacklistDomains,
             'blacklistSchemes' => $this->blacklistSchemes,
+            'nat64Prefixes' => $this->nat64Prefixes,
         ];
     }
 }

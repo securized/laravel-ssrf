@@ -228,6 +228,18 @@ IP entries support CIDR notation for both IPv4 and IPv6:
 ],
 ```
 
+### IPv6 addresses that carry an IPv4 address
+
+Several IPv6 forms exist only to reach an IPv4 address, and a gateway or tunnel on the network forwards them there: `64:ff9b::a9fe:a9fe` is `169.254.169.254` behind a NAT64 gateway. The validator unwraps these and checks the IPv4 address against the same IP lists as the address itself, so an IPv4 blacklist entry covers every wrapping of it. The forms it unwraps are IPv4-compatible, IPv4-mapped, IPv4-translated, 6to4, Teredo (server and client), ISATAP and NAT64.
+
+The transition prefixes nobody should be fetching from are also in the default blacklist as whole ranges. NAT64 is the exception: on an IPv6-only network with DNS64, every IPv4-only host resolves into the NAT64 prefix, so its addresses are only judged by the IPv4 address they carry. The well-known prefix `64:ff9b::/96` is handled out of the box. If your gateway uses its own prefix, list it so its addresses are unwrapped too:
+
+```php
+'nat64_prefixes' => ['64:ff9b::/96', '2001:db8:64::/96'],
+```
+
+An IP whitelist entry works the same way: whitelisting `93.184.216.0/24` also admits the NAT64 address that forwards to it.
+
 ### Hostnames
 
 The host is validated under the name curl will actually look up, so the domain lists, DNS and the pin all see the same thing:

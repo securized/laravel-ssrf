@@ -54,7 +54,7 @@ describe('SsrfOptions defaults', function (): void {
         expect($ips)->toContain('::1/128');
         expect($ips)->toContain('::ffff:0:0/96');
         expect($ips)->toContain('2002::/16');
-        expect($ips)->toContain('::/96', '64:ff9b:1::/48', '2001::/32');
+        expect($ips)->toContain('::/96', '::ffff:0:0:0/96', '64:ff9b:1::/48', '2001::/32');
         expect($ips)->toContain('fc00::/7');
         expect($ips)->toContain('fe80::/10');
         expect($ips)->toContain('ff00::/8');
@@ -279,5 +279,17 @@ describe('additive wither helpers', function (): void {
             ->addBlacklistDomain('evil.com', 'bad.net');
 
         expect($opts->blacklistDomains)->toBe(['evil.com', 'bad.net']);
+    });
+});
+
+describe('SsrfOptions NAT64 prefixes', function (): void {
+    test('default to the well-known prefix, also for a config published without the key', function (): void {
+        expect((new SsrfOptions)->nat64Prefixes)->toBe(['64:ff9b::/96'])
+            ->and(SsrfOptions::fromConfig([])->nat64Prefixes)->toBe(['64:ff9b::/96']);
+    });
+
+    test('can be set from config and fluently, and survive other changes', function (): void {
+        expect(SsrfOptions::fromConfig(['nat64_prefixes' => ['2a00:1450:64::/96']])->nat64Prefixes)->toBe(['2a00:1450:64::/96'])
+            ->and((new SsrfOptions)->withNat64Prefixes(['2a00:1450:64::/96'])->withPinDns()->nat64Prefixes)->toBe(['2a00:1450:64::/96']);
     });
 });
