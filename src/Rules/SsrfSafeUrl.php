@@ -19,7 +19,7 @@ class SsrfSafeUrl implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value)) {
-            $fail('The :attribute must be a string URL.');
+            $fail('The :attribute must be a string URL.')->translate();
 
             return;
         }
@@ -33,7 +33,7 @@ class SsrfSafeUrl implements ValidationRule
         } catch (SsrfException) {
             // Deliberately generic: the exception message names resolved IPs and
             // CIDR ranges, which must not reach an end user.
-            $fail('The :attribute contains a URL that is not permitted.');
+            $fail('The :attribute contains a URL that is not permitted.')->translate();
         }
     }
 }
