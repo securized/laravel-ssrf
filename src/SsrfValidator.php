@@ -124,6 +124,12 @@ readonly class SsrfValidator
     {
         $host = strtolower(trim($host, '[]'));
 
+        if ($this->isNonCanonicalIpv4($host)) {
+            throw new InvalidUrlException(
+                sprintf('Host "%s" is a numeric address that is not in dotted-decimal form.', $host)
+            );
+        }
+
         if ($opts->whitelistDomains !== [] && ! $this->matchesList($host, $opts->whitelistDomains)) {
             throw new InvalidDomainException(sprintf('Host "%s" is not in the domain whitelist.', $host));
         }
@@ -141,6 +147,28 @@ readonly class SsrfValidator
         }
 
         return ['host' => $host, 'ips' => $this->validateIps($ips, $host, $opts)];
+    }
+
+    /**
+     * No TLD is all-numeric, so a host ending in a numeric label is an IPv4 address.
+     * PHP, libc and curl read the non-canonical forms differently per build: reject, never interpret.
+     */
+    private function isNonCanonicalIpv4(string $host): bool
+    {
+        if (str_contains($host, ':')) {
+            return false;
+        }
+
+        $labels = explode('.', $host);
+        if (end($labels) === '') {
+            array_pop($labels);
+        }
+
+        if (preg_match('/^(\d+|0x[0-9a-f]*)$/', (string) end($labels)) !== 1) {
+            return false;
+        }
+
+        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false;
     }
 
     /**
