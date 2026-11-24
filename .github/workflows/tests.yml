@@ -21,6 +21,9 @@ jobs:
         include:
           - laravel: '11.*'
             testbench: '9.*'
+            # Every Laravel 11 release, 11.x-dev included, has open advisories,
+            # and Composer refuses to install it without this.
+            ignore-advisories: laravel/framework
           - laravel: '12.*'
             testbench: '10.*'
           - laravel: '13.*'
@@ -38,6 +41,10 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, curl, libxml, mbstring, zip
           coverage: none
+
+      - name: Allow packages with known advisories
+        if: matrix.ignore-advisories
+        run: composer config --json policy.advisories.ignore '["${{ matrix.ignore-advisories }}"]'
 
       - name: Install dependencies
         run: |
