@@ -17,8 +17,11 @@ use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Uri;
+use Psr\Http\Message\RequestInterface;
 use Securized\Ssrf\Dns\FakeDnsResolver;
 use Securized\Ssrf\Http\DnsPinner;
 use Securized\Ssrf\Http\Middleware\SsrfProtectionMiddleware;
@@ -29,8 +32,10 @@ use Securized\Ssrf\SsrfValidator;
 // developer's shell nor another test may decide how these requests are pinned.
 function clearProxyEnvironment(): void
 {
-    foreach (['http_proxy', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
+    foreach (['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
         putenv($name);
+        // Guzzle reads its proxy defaults from $_SERVER first.
+        unset($_SERVER[$name], $_ENV[$name]);
     }
 }
 
@@ -223,7 +228,7 @@ describe('middleware pins every validated address', function (): void {
 
 describe('middleware pins IDN hosts', function (): void {
     test('the request and the entry both use the punycode name curl looks up', function (): void {
-        $dns = (new FakeDnsResolver)->addRecord('bücher.example', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('xn--bcher-kva.example', '93.184.216.34');
         $history = [];
         pinnedClient(unpinnedOpts(true), $dns, $history)->get('https://bücher.example/path');
 
@@ -318,7 +323,7 @@ describe('middleware fallback to a URL rewrite', function (): void {
     });
 
     test('an IDN host is sent as punycode in the Host header', function (): void {
-        $dns = (new FakeDnsResolver)->addRecord('bücher.example', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('xn--bcher-kva.example', '93.184.216.34');
         $history = [];
         pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://bücher.example/path', ['stream' => true]);
 
@@ -339,7 +344,7 @@ describe('middleware fallback to a URL rewrite', function (): void {
 
 describe('middleware keeps the pin where curl would miss the entry', function (): void {
     test('a trailing dot is dropped from the request so the entry matches on every libcurl', function (): void {
-        $dns = (new FakeDnsResolver)->addRecord('example.com.', '93.184.216.34');
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
         $history = [];
         pinnedClient(unpinnedOpts(true), $dns, $history)->get('https://example.com./path');
 
@@ -416,5 +421,65 @@ describe('middleware honours no_proxy when pinning', function (): void {
 
         expect((string) $history[0]['request']->getUri())->toBe('http://93.184.216.34/')
             ->and($history[0]['options']['proxy'])->toBeArray();
+    });
+});
+
+describe('middleware detects what it cannot pin through curl', function (): void {
+    test('a SOCKS pre-proxy counts as a proxy', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)
+            ->get('https://example.com/', ['curl' => [CURLOPT_PRE_PROXY => 'socks5h://proxy.test:1080']]);
+
+        expect($history[0]['options']['curl'][CURLOPT_CONNECT_TO])->toBe(['example.com:443:93.184.216.34:443'])
+            ->and($history[0]['options']['curl'])->not->toHaveKey(CURLOPT_RESOLVE);
+    });
+
+    test('a non-curl handler directly below the middleware is pinned by rewrite', function (): void {
+        $handler = new class
+        {
+            /** @var array{RequestInterface, array<string, mixed>}|null */
+            public ?array $seen = null;
+
+            public function __invoke(RequestInterface $request, array $options): PromiseInterface
+            {
+                $this->seen = [$request, $options];
+
+                return Create::promiseFor(new Response(200));
+            }
+        };
+
+        $stack = new HandlerStack($handler);
+        $dns = (new FakeDnsResolver)->addRecord('example.com', '93.184.216.34');
+        $stack->push((new SsrfProtectionMiddleware(new SsrfValidator(unpinnedOpts(true), $dns)))->handler());
+        (new Client(['handler' => $stack]))->get('https://example.com/path');
+
+        expect((string) $handler->seen[0]->getUri())->toBe('https://93.184.216.34/path')
+            ->and($handler->seen[0]->getHeaderLine('Host'))->toBe('example.com')
+            ->and($handler->seen[1])->not->toHaveKey('curl');
+    });
+
+    test('the no list is ignored for a proxy set through CURLOPT_PROXY, as Guzzle ignores it too', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('internal.example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get('https://internal.example.com/', [
+            'curl' => [CURLOPT_PROXY => 'http://proxy.test:3128'],
+            'proxy' => ['no' => ['.example.com']],
+        ]);
+
+        expect($history[0]['options']['curl'][CURLOPT_PROXY])->toBe('http://proxy.test:3128')
+            ->and($history[0]['options']['curl'])->toHaveKey(CURLOPT_CONNECT_TO);
+    });
+
+    test('no_proxy from the environment matches regardless of case', function (): void {
+        putenv('http_proxy=http://proxy.test:3128');
+        putenv('NO_PROXY=Internal.Example.COM');
+
+        $dns = (new FakeDnsResolver)->addRecord('internal.example.com', '93.184.216.34');
+        $history = [];
+        pinnedClient(unpinnedOpts(true), $dns, $history)->get('http://internal.example.com/');
+
+        expect($history[0]['options']['curl'][CURLOPT_PROXY])->toBe('')
+            ->and($history[0]['options']['curl'])->toHaveKey(CURLOPT_RESOLVE);
     });
 });

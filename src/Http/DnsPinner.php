@@ -26,13 +26,12 @@ class DnsPinner
     {
         $uri = $request->getUri();
         $scheme = strtolower($uri->getScheme());
-        $asciiHost = $this->asciiHost($host);
         $usesCurl = $this->usesCurl($options);
         $proxied = $this->mayUseProxy($options, $scheme, $usesCurl);
 
         // Once the URL carries the IP, no_proxy can no longer match the name,
         // so a host it exempts is sent direct explicitly.
-        if ($proxied && $this->exemptFromProxy($options, $asciiHost ?? $host)) {
+        if ($proxied && $this->exemptFromProxy($options, $scheme, $host, $usesCurl)) {
             $options['proxy'] = '';
             if ($usesCurl) {
                 $options['curl'][CURLOPT_PROXY] = '';
@@ -42,17 +41,16 @@ class DnsPinner
 
         // Proxied plain HTTP is rewritten too: connect-to would force CONNECT,
         // which proxies commonly refuse for port 80.
-        if (! $usesCurl || $asciiHost === null || ($proxied && $scheme !== 'https')) {
-            $authority = ($asciiHost ?? $host).($uri->getPort() === null ? '' : ':'.$uri->getPort());
+        if (! $usesCurl || ($proxied && $scheme !== 'https')) {
+            $authority = $host.($uri->getPort() === null ? '' : ':'.$uri->getPort());
 
             return [$request->withUri($uri->withHost($this->bracketIpv6($ips[0])))->withHeader('Host', $authority), $options];
         }
 
         // curl matches resolve and connect-to entries against the punycode
         // name, and before 7.82 against the name without its trailing dot.
-        $curlHost = str_ends_with($asciiHost, '.') ? substr($asciiHost, 0, -1) : $asciiHost;
-        if ($curlHost !== $host) {
-            $request = $request->withUri($uri->withHost($curlHost));
+        if ($uri->getHost() !== $host) {
+            $request = $request->withUri($uri->withHost($host));
         }
 
         $port = $uri->getPort() ?? self::DEFAULT_PORTS[$scheme] ?? 80;
@@ -61,7 +59,7 @@ class DnsPinner
             // A proxy resolves the name itself and never consults CURLOPT_RESOLVE.
             // curl uses the first matching connect-to entry, so ours goes first.
             $options['curl'][CURLOPT_CONNECT_TO] = [
-                sprintf('%s:%d:%s:%d', $curlHost, $port, $this->bracketIpv6($ips[0]), $port),
+                sprintf('%s:%d:%s:%d', $host, $port, $this->bracketIpv6($ips[0]), $port),
                 ...($options['curl'][CURLOPT_CONNECT_TO] ?? []),
             ];
 
@@ -79,7 +77,7 @@ class DnsPinner
             sprintf(
                 '%s%s:%d:%s',
                 $cacheDisabled ? '' : self::expiringPrefix(),
-                $curlHost,
+                $host,
                 $port,
                 implode(',', array_map($this->bracketIpv6(...), $ips)),
             ),
@@ -124,7 +122,7 @@ class DnsPinner
      */
     private function mayUseProxy(array $options, string $scheme, bool $usesCurl): bool
     {
-        if ($usesCurl && ! empty($options['curl'][CURLOPT_PROXY])) {
+        if ($usesCurl && (! empty($options['curl'][CURLOPT_PROXY]) || ! empty($options['curl'][CURLOPT_PRE_PROXY]))) {
             return true;
         }
 
@@ -146,35 +144,25 @@ class DnsPinner
         );
     }
 
-    /** @param  array<string, mixed>  $options */
-    private function exemptFromProxy(array $options, string $host): bool
+    /**
+     * Guzzle applies the `no` list only to its own proxy option; libcurl
+     * applies the environment list to any proxy it is handed.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    private function exemptFromProxy(array $options, string $scheme, string $host, bool $usesCurl): bool
     {
         $proxy = $options['proxy'] ?? null;
-        $patterns = is_array($proxy) ? (array) ($proxy['no'] ?? []) : [];
+        $curlProxy = $usesCurl && (! empty($options['curl'][CURLOPT_PROXY]) || ! empty($options['curl'][CURLOPT_PRE_PROXY]));
+        $patterns = ! $curlProxy && is_array($proxy) && ! empty($proxy[$scheme]) ? (array) ($proxy['no'] ?? []) : [];
 
-        // libcurl applies these to any proxy, including one set explicitly.
-        foreach (['no_proxy', 'NO_PROXY'] as $name) {
-            $patterns = [...$patterns, ...explode(',', str_replace(' ', '', (string) getenv($name)))];
+        if ($usesCurl) {
+            $patterns = [...$patterns, ...explode(',', (string) getenv('no_proxy')), ...explode(',', (string) getenv('NO_PROXY'))];
         }
 
-        $patterns = array_values(array_filter($patterns, fn (mixed $pattern): bool => is_string($pattern) && $pattern !== ''));
+        $patterns = array_values(array_filter(array_map(fn (mixed $pattern): string => strtolower(trim((string) $pattern)), $patterns)));
 
         return $patterns !== [] && Utils::isHostInNoProxy($host, $patterns);
-    }
-
-    private function asciiHost(string $host): ?string
-    {
-        if (! preg_match('/[^\x00-\x7F]/', $host)) {
-            return $host;
-        }
-
-        if (! function_exists('idn_to_ascii')) {
-            return null;
-        }
-
-        $ascii = idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46);
-
-        return $ascii === false ? null : strtolower($ascii);
     }
 
     private function bracketIpv6(string $ip): string

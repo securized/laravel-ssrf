@@ -23,8 +23,10 @@ const SERVER_PORT = 18923;
 const SERVER_URL = 'http://'.SERVER_HOST.':'.SERVER_PORT;
 
 beforeEach(function (): void {
-    foreach (['http_proxy', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
+    foreach (['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'] as $name) {
         putenv($name);
+        // Guzzle reads its proxy defaults from $_SERVER first.
+        unset($_SERVER[$name], $_ENV[$name]);
     }
 });
 

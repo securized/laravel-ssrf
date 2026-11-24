@@ -29,11 +29,12 @@ readonly class SsrfValidator
     }
 
     /**
+     * @param  bool  $pinned  true only when the caller connects to the returned IPs and nothing else
      * @return array{url: string, host: string, ips: list<string>, pinned: bool}
      *
      * @throws SsrfException
      */
-    public function validate(string $url): array
+    public function validate(string $url, bool $pinned = false): array
     {
         $opts = $this->options;
 
@@ -67,7 +68,7 @@ readonly class SsrfValidator
             $this->validatePort($port, $opts);
         }
 
-        ['host' => $host, 'ips' => $ips] = $this->validateHost($host, $opts);
+        ['host' => $host, 'ips' => $ips] = $this->validateHost($host, $opts, $pinned && $opts->pinDns);
 
         $pinnedUri = $uri->withScheme($scheme);
         if ($opts->pinDns) {
@@ -90,7 +91,7 @@ readonly class SsrfValidator
 
     public function safeUrl(string $url): string
     {
-        return $this->validate($url)['url'];
+        return $this->validate($url, true)['url'];
     }
 
     private function validateScheme(string $scheme, SsrfOptions $opts): void
@@ -120,11 +121,9 @@ readonly class SsrfValidator
     }
 
     /** @return array{host: string, ips: list<string>} */
-    private function validateHost(string $host, SsrfOptions $opts): array
+    private function validateHost(string $host, SsrfOptions $opts, bool $pinned): array
     {
-        $host = strtolower(trim($host, '[]'));
-
-        $this->assertHostSyntax($host);
+        $host = $this->normaliseHost($host);
 
         if ($this->isNonCanonicalIpv4($host)) {
             throw new InvalidUrlException(
@@ -148,26 +147,35 @@ readonly class SsrfValidator
             throw new InvalidDomainException(sprintf('Host "%s" does not resolve to any IP address.', $host));
         }
 
-        return ['host' => $host, 'ips' => $this->validateIps($ips, $host, $opts)];
+        return ['host' => $host, 'ips' => $this->validateIps($ips, $host, $opts, $pinned)];
     }
 
     /**
-     * curl percent-decodes the host before resolving it, so "%61.example" here
-     * would be validated under one name and fetched under another.
+     * Returns the name curl will actually look up, so the lists, DNS and the
+     * pin all see it: curl percent-decodes the host and maps IDN to punycode.
      */
-    private function assertHostSyntax(string $host): void
+    private function normaliseHost(string $host): string
     {
-        if (str_contains($host, ':')) {
-            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+        if (str_starts_with($host, '[')) {
+            $ip = trim($host, '[]');
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
                 throw new InvalidUrlException(sprintf('Host "%s" is not a valid IPv6 address.', $host));
             }
 
-            return;
+            return strtolower($ip);
         }
 
-        if (preg_match('/^[a-z0-9_\x80-\xff][a-z0-9._\-\x80-\xff]*$/', $host) !== 1) {
-            throw new InvalidUrlException(sprintf('Host "%s" contains characters that are not valid in a hostname.', $host));
+        $ascii = preg_match('/[^\x00-\x7F]/', $host) !== 1
+            ? $host
+            : (function_exists('idn_to_ascii') ? idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46) : false);
+
+        $ascii = strtolower(is_string($ascii) && str_ends_with($ascii, '.') ? substr($ascii, 0, -1) : (string) $ascii);
+
+        if (preg_match('/^[a-z0-9_][a-z0-9._-]*\z/', $ascii) !== 1) {
+            throw new InvalidUrlException(sprintf('Host "%s" is not a valid hostname.', $host));
         }
+
+        return $ascii;
     }
 
     /**
@@ -199,7 +207,7 @@ readonly class SsrfValidator
      * @param  list<string>  $ips
      * @return non-empty-list<string>
      */
-    private function validateIps(array $ips, string $host, SsrfOptions $opts): array
+    private function validateIps(array $ips, string $host, SsrfOptions $opts, bool $pinned): array
     {
         $resolved = collect($ips);
         $allowed = $resolved;
@@ -211,7 +219,7 @@ readonly class SsrfValidator
             )->values();
 
             // Unpinned, curl may connect to any address the name resolves to.
-            if ($allowed->isEmpty() || (! $opts->pinDns && $allowed->count() !== $resolved->count())) {
+            if ($allowed->isEmpty() || (! $pinned && $allowed->count() !== $resolved->count())) {
                 throw new InvalidIpException(
                     sprintf('Host "%s" resolves to [%s] which is not in the IP whitelist.', $host, $resolved->implode(', '))
                 );

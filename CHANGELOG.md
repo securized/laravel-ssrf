@@ -12,7 +12,7 @@ Initial release.
 ### Changed
 
 - DNS pinning in the HTTP client middleware now uses `CURLOPT_RESOLVE` instead of replacing the hostname in the request URL, so TLS SNI and certificate validation keep working against the original hostname ([#2](https://github.com/securized/laravel-ssrf/issues/2)).
-- DNS pinning now also holds for requests sent through a proxy and for IDN hostnames, pins every validated address instead of the first, and no longer leaves entries behind on a reused curl handle.
+- DNS pinning now also holds for requests sent through a proxy (including a SOCKS pre-proxy), for IDN hostnames and for non-curl handlers the middleware can see, pins every validated address instead of the first, and no longer leaves entries behind on a reused curl handle.
 
 ### Added
 
@@ -28,5 +28,7 @@ Initial release.
 ### Security
 
 - Hosts containing a percent-escape or other characters that are not valid in a hostname are now rejected. curl decodes the host before resolving it, so `%61.example.com` was validated under one name and fetched under another.
-- With `whitelist_ips` set and `pin_dns` off, a host is now rejected unless every address it resolves to is whitelisted. Previously one whitelisted address was enough, while curl could connect to any of the others.
+- Hosts are now validated under the name curl looks up: IDN hosts are converted to punycode and a trailing dot is dropped before the domain lists and DNS are consulted. Previously `ｅxample.com` and `example.com.` skipped a `blacklist_domains` entry for `example.com`. Non-ASCII hosts are rejected when the intl extension is missing.
+- A bracketed host that is not an IPv6 address is now rejected.
+- With `whitelist_ips` set, a host is now rejected unless every address it resolves to is whitelisted, except for requests that are actually pinned (the middleware and `Ssrf::safeUrl()` with `pin_dns` on). Previously one whitelisted address was enough, while curl could connect to any of the others.
 - Numeric hosts that are not dotted-decimal IPv4 (`0177.0.0.1`, `0x7f000001`, `2130706433`, `127.1`, `127.0.0.1.`) are now rejected before any DNS lookup. Previously they were looked up, so a resolver that answered for one could get the URL approved while curl connected to the address it encodes.

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Securized\Ssrf\Http\Middleware;
 
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Handler\CurlMultiHandler;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use Psr\Http\Message\RequestInterface;
@@ -29,7 +31,7 @@ class SsrfProtectionMiddleware
                 $urlStr = (string) $request->getUri();
 
                 try {
-                    $result = $this->validator->validate($urlStr);
+                    $result = $this->validator->validate($urlStr, true);
                 } catch (SsrfException $e) {
                     return Create::rejectionFor(new RequestException($e->getMessage(), $request, null, $e));
                 }
@@ -38,6 +40,11 @@ class SsrfProtectionMiddleware
                 // validate() also normalises case, so a string diff would pin
                 // requests that never asked to be pinned.
                 if ($result['pinned'] && ! filter_var($result['host'], FILTER_VALIDATE_IP)) {
+                    // Guzzle's default handler is a closure; a handler object that is not curl ignores curl options.
+                    if (is_object($next) && ! $next instanceof \Closure && ! $next instanceof CurlHandler && ! $next instanceof CurlMultiHandler) {
+                        $options[self::REWRITE_OPTION] = true;
+                    }
+
                     [$request, $options] = $this->pinner->pin($request, $options, $result['host'], $result['ips']);
                 }
 
