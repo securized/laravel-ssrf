@@ -144,9 +144,8 @@ readonly class SsrfValidator
     }
 
     /**
-     * Returns the addresses a request may connect to. With an IP whitelist
-     * that is only the whitelisted ones, so pinning never picks an address
-     * that merely shared a DNS answer with an allowed one.
+     * With an IP whitelist, returns only the whitelisted addresses, so pinning
+     * cannot pick another address from the same DNS answer.
      *
      * @param  list<string>  $ips
      * @return non-empty-list<string>

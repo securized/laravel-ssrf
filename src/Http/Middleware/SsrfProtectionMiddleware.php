@@ -46,9 +46,7 @@ class SsrfProtectionMiddleware
 
     /**
      * Pins via CURLOPT_RESOLVE so the URL, Host header, SNI and certificate
-     * check all keep the original hostname. Where curl would never consult
-     * that entry (another handler, or a proxy doing the lookup), the pin is
-     * applied another way instead of being silently dropped.
+     * check all keep the original hostname.
      *
      * @param  array<string, mixed>  $options
      * @param  non-empty-list<string>  $ips
@@ -61,18 +59,15 @@ class SsrfProtectionMiddleware
         $proxied = $this->mayUseProxy($options, $scheme);
         $asciiHost = $this->asciiHost($host);
 
-        // Substituting the IP into the URL costs nothing over plain HTTP, so a
-        // proxied HTTP request takes this path too: connect-to would force the
-        // proxy into CONNECT mode, which proxies commonly refuse for port 80.
+        // Proxied plain HTTP is rewritten too: connect-to would force CONNECT,
+        // which proxies commonly refuse for port 80.
         if (! $this->usesCurl($options) || $asciiHost === null || ($proxied && $scheme !== 'https')) {
             $authority = $uri->getPort() === null ? $host : $host.':'.$uri->getPort();
 
             return [$request->withUri($uri->withHost($this->bracketIpv6($ips[0])))->withHeader('Host', $authority), $options];
         }
 
-        // curl matches these entries against the punycode name. Sending that
-        // name ourselves avoids depending on curl's IDN conversion agreeing
-        // with ours.
+        // curl matches resolve and connect-to entries against the punycode name.
         if ($asciiHost !== $host) {
             $request = $request->withUri($uri->withHost($asciiHost));
         }
@@ -80,9 +75,8 @@ class SsrfProtectionMiddleware
         $port = $uri->getPort() ?? self::DEFAULT_PORTS[$scheme] ?? 80;
 
         if ($proxied) {
-            // A proxy resolves the name itself and never sees CURLOPT_RESOLVE.
-            // connect-to has it tunnel to the validated IP while TLS keeps the
-            // hostname. The first matching entry wins, so ours goes first.
+            // A proxy resolves the name itself and never consults CURLOPT_RESOLVE.
+            // curl uses the first matching connect-to entry, so ours goes first.
             $options['curl'][CURLOPT_CONNECT_TO] = [
                 sprintf('%s:%d:%s:%d', $asciiHost, $port, $this->bracketIpv6($ips[0]), $port),
                 ...($options['curl'][CURLOPT_CONNECT_TO] ?? []),
@@ -107,9 +101,8 @@ class SsrfProtectionMiddleware
     }
 
     /**
-     * Entries without a leading "+" never leave the DNS cache of a reused curl
-     * handle, so a pin would outlive its request for as long as the worker
-     * runs. libcurl before 7.75 reads the "+" as part of the hostname.
+     * Without "+" an entry never leaves a reused handle's DNS cache.
+     * libcurl before 7.75 reads the "+" as part of the hostname.
      */
     public static function expiringPrefix(): string
     {
@@ -117,8 +110,7 @@ class SsrfProtectionMiddleware
     }
 
     /**
-     * Mirrors how Guzzle picks a handler: the stream handler is only used for
-     * `stream` requests when allow_url_fopen is on, or when curl is missing.
+     * Mirrors GuzzleHttp\Utils::chooseHandler().
      *
      * @param  array<string, mixed>  $options
      */
@@ -132,9 +124,8 @@ class SsrfProtectionMiddleware
     }
 
     /**
-     * Errs towards true: treating a direct request as proxied still pins it,
-     * while missing a proxy would lose the pin. no_proxy lists are therefore
-     * ignored.
+     * Errs towards true, hence no_proxy is ignored: a direct request treated
+     * as proxied is still pinned, a missed proxy is not.
      *
      * @param  array<string, mixed>  $options
      */
@@ -162,7 +153,6 @@ class SsrfProtectionMiddleware
         );
     }
 
-    /** Null when the name is not ASCII and cannot be converted to punycode. */
     private function asciiHost(string $host): ?string
     {
         if (! preg_match('/[^\x00-\x7F]/', $host)) {

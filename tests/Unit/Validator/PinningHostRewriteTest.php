@@ -39,7 +39,6 @@ function unpinnedOpts(bool $pin = false): SsrfOptions
     return (new SsrfOptions)->withBlacklistIps([])->withPinDns($pin);
 }
 
-/** The middleware marks its entries as expiring where libcurl supports it. */
 function pinEntry(string $entry): string
 {
     return SsrfProtectionMiddleware::expiringPrefix().$entry;
