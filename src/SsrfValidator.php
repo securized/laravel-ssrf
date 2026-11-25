@@ -19,29 +19,16 @@ readonly class SsrfValidator
 {
     private const DEFAULT_PORTS = ['http' => 80, 'https' => 443];
 
-    private const NAT64_WELL_KNOWN_PREFIX = '64:ff9b::/96';
-
-    private const IPV4_COMPATIBLE_PREFIX = "\0\0\0\0\0\0\0\0\0\0\0\0";
-
-    private const IPV4_MAPPED_PREFIX = "\0\0\0\0\0\0\0\0\0\0\xff\xff";
-
-    private const IPV4_TRANSLATED_PREFIX = "\0\0\0\0\0\0\0\0\xff\xff\0\0";
-
-    private const SIX_TO_FOUR_PREFIX = "\x20\x02";
-
-    private const TEREDO_PREFIX = "\x20\x01\0\0";
-
-    private const ISATAP_INTERFACE_IDS = ["\0\0\x5e\xfe", "\x02\0\x5e\xfe"];
-
-    private const UNSPECIFIED_AND_LOOPBACK = ["\0\0\0\0", "\0\0\0\1"];
-
     private DnsResolver $dns;
+
+    private EmbeddedIpv4 $embedded;
 
     public function __construct(
         private SsrfOptions $options,
         ?DnsResolver $dns = null,
     ) {
         $this->dns = $dns ?? new NativeDnsResolver;
+        $this->embedded = new EmbeddedIpv4($options->nat64Prefixes);
     }
 
     /**
@@ -231,7 +218,7 @@ readonly class SsrfValidator
         if ($opts->whitelistIps !== []) {
             $whitelist = collect($opts->whitelistIps);
             // Only NAT64 here: the other forms can sit in an address the attacker owns.
-            $allowed = $resolved->filter(fn (string $ip) => collect([$ip, ...$this->nat64Ipv4($ip, wellFormed: true)])->contains(
+            $allowed = $resolved->filter(fn (string $ip) => collect([$ip, ...$this->embedded->nat64($ip, wellFormed: true)])->contains(
                 fn (string $candidate) => $whitelist->contains(fn (string $range) => $this->cidrMatch($candidate, $range))
             ))->values();
 
@@ -244,8 +231,9 @@ readonly class SsrfValidator
         }
 
         $blocked = $resolved
-            ->flatMap(fn (string $ip) => collect($this->blacklistCandidates($ip))
-                ->crossJoin($opts->blacklistIps)
+            ->flatMap(fn (string $ip) => collect([$ip])
+                ->crossJoin($this->rangesForAddress($ip, $opts))
+                ->concat(collect($this->embedded->in($ip))->crossJoin($opts->blacklistIps))
                 ->map(fn (array $pair) => [$ip, ...$pair]))
             ->first(fn (array $match) => $this->cidrMatch($match[1], $match[2]));
 
@@ -262,96 +250,17 @@ readonly class SsrfValidator
     }
 
     /**
-     * IPv4 addresses a transition mechanism would forward this address to.
-     * NAT64 is unwrapped, never blacklisted: behind DNS64 every IPv4-only host resolves into it.
+     * A NAT64 prefix may sit inside a default range such as fc00::/7, and its
+     * addresses must then be judged by the IPv4 address they carry. Ranges the
+     * operator added still apply to the address itself.
      *
      * @return list<string>
      */
-    private function embeddedIpv4(string $ip): array
+    private function rangesForAddress(string $ip, SsrfOptions $opts): array
     {
-        $packed = @inet_pton($ip);
-        if (! is_string($packed) || strlen($packed) !== 16) {
-            return [];
-        }
-
-        $found = [];
-        $prefix = substr($packed, 0, 12);
-        $last = substr($packed, 12);
-
-        if ($prefix === self::IPV4_COMPATIBLE_PREFIX && ! in_array($last, self::UNSPECIFIED_AND_LOOPBACK, true)) {
-            $found[] = $last;
-        }
-
-        if (in_array($prefix, [self::IPV4_MAPPED_PREFIX, self::IPV4_TRANSLATED_PREFIX], true)) {
-            $found[] = $last;
-        }
-
-        if (str_starts_with($packed, self::SIX_TO_FOUR_PREFIX)) {
-            $found[] = substr($packed, 2, 4);
-        }
-
-        // Teredo carries its server, and its client with every bit inverted.
-        if (str_starts_with($packed, self::TEREDO_PREFIX)) {
-            $found[] = substr($packed, 4, 4);
-            $found[] = $last ^ "\xff\xff\xff\xff";
-        }
-
-        if (in_array(substr($packed, 8, 4), self::ISATAP_INTERFACE_IDS, true)) {
-            $found[] = $last;
-        }
-
-        return array_values(array_unique([
-            ...array_map(fn (string $bytes): string => (string) inet_ntop($bytes), $found),
-            ...$this->nat64Ipv4($ip),
-        ]));
-    }
-
-    /**
-     * An address in a NAT64 prefix is judged only by the IPv4 address it
-     * carries, even when a blacklisted range such as fc00::/7 contains the prefix.
-     *
-     * @return list<string>
-     */
-    private function blacklistCandidates(string $ip): array
-    {
-        return [...($this->nat64Ipv4($ip) === [] ? [$ip] : []), ...$this->embeddedIpv4($ip)];
-    }
-
-    /**
-     * RFC 6052: the IPv4 address follows the prefix, skipping byte 8. A
-     * gateway may ignore the bits after it, so only $wellFormed requires them zero.
-     *
-     * @return list<string>
-     */
-    private function nat64Ipv4(string $ip, bool $wellFormed = false): array
-    {
-        $packed = @inet_pton($ip);
-        if (! is_string($packed) || strlen($packed) !== 16) {
-            return [];
-        }
-
-        $found = [];
-
-        foreach (array_unique([self::NAT64_WELL_KNOWN_PREFIX, ...$this->options->nat64Prefixes]) as $prefix) {
-            if (! $this->cidrMatch($ip, $prefix)) {
-                continue;
-            }
-
-            $ipv4 = $rest = '';
-            for ($i = intdiv((int) explode('/', $prefix)[1], 8); $i < 16; $i++) {
-                if ($i !== 8 && strlen($ipv4) < 4) {
-                    $ipv4 .= $packed[$i];
-                } else {
-                    $rest .= $packed[$i];
-                }
-            }
-
-            if (! $wellFormed || trim($rest, "\0") === '') {
-                $found[] = (string) inet_ntop($ipv4);
-            }
-        }
-
-        return $found;
+        return $this->embedded->nat64($ip) === []
+            ? $opts->blacklistIps
+            : array_values(array_diff($opts->blacklistIps, SsrfOptions::DEFAULT_BLACKLIST_IPS));
     }
 
     /**

@@ -238,7 +238,7 @@ The transition prefixes nobody should be fetching from are also in the default b
 'nat64_prefixes' => ['64:ff9b::/96', '2001:db8:64::/96'],
 ```
 
-A prefix must be IPv6 with one of the RFC 6052 lengths (`/32`, `/40`, `/48`, `/56`, `/64`, `/96`); anything else throws when the options are built. An address in a listed prefix is judged only by the IPv4 address it carries, so a gateway on `64:ff9b:1::/96` or a unique-local prefix works although the default blacklist contains those ranges. The well-known prefix is always unwrapped, whatever the list holds.
+A prefix must be IPv6 with one of the RFC 6052 lengths (`/32`, `/40`, `/48`, `/56`, `/64`, `/96`); anything else throws when the options are built. An address in a listed prefix is judged by the IPv4 address it carries and not by the default blacklist ranges around it, so a gateway on `64:ff9b:1::/96` or a unique-local prefix works. A range you add to the blacklist yourself still applies to the address, so adding `64:ff9b::/96` blocks NAT64 outright. The well-known prefix is always unwrapped, whatever the list holds.
 
 An IP whitelist entry admits the NAT64 address that forwards to it: whitelisting `93.184.216.0/24` also allows `64:ff9b::5db8:d822`. That only holds for a well-formed NAT64 address, with nothing set after the embedded IPv4. The other forms are never whitelisted by the IPv4 address they carry, because they can appear in an address the attacker controls.
 

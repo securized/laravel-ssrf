@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `nat64_prefixes` config option and `SsrfOptions::withNat64Prefixes()`, for NAT64 gateways that do not use the well-known prefix. An address in a listed prefix is judged only by the IPv4 address it carries. A prefix that is not IPv6 with an RFC 6052 length throws `InvalidArgumentException`.
+- `nat64_prefixes` config option and `SsrfOptions::withNat64Prefixes()`, for NAT64 gateways that do not use the well-known prefix. An address in a listed prefix is judged by the IPv4 address it carries, not by the default blacklist ranges around it; ranges you add yourself still apply. A prefix that is not IPv6 with an RFC 6052 length throws `InvalidArgumentException`.
 
 ### Changed
 

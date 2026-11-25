@@ -177,6 +177,17 @@ describe('NAT64 prefixes are judged by the IPv4 address they carry', function ()
         'unique local' => ['fd00:64::/96', 'fd00:64::5db8:d822', 'fd00:64::a9fe:a9fe'],
     ]);
 
+    test('a range the operator blacklists still blocks the NAT64 address itself', function (string $range, string $prefix, string $address): void {
+        $options = (new SsrfOptions)->withNat64Prefixes([$prefix])->addBlacklistIp($range);
+
+        expect((new SsrfValidator($options))->isSafe("http://[{$address}]/"))->toBeFalse();
+    })->with([
+        'the well-known prefix, blocked outright' => ['64:ff9b::/96', '64:ff9b::/96', '64:ff9b::5db8:d822'],
+        'one address in the well-known prefix' => ['64:ff9b::5db8:d822', '64:ff9b::/96', '64:ff9b::5db8:d822'],
+        'a configured prefix, blocked outright' => ['fd00:64::/96', 'fd00:64::/96', 'fd00:64::5db8:d822'],
+        'a range around a configured prefix' => ['fd00:64::/32', 'fd00:64::/96', 'fd00:64::5db8:d822'],
+    ]);
+
     test('the well-known prefix is unwrapped even when the option is emptied', function (): void {
         expect((new SsrfValidator((new SsrfOptions)->withNat64Prefixes([])))->isSafe('http://[64:ff9b::a9fe:a9fe]/'))->toBeFalse();
     });
