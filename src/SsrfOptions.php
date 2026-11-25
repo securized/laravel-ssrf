@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Securized\Ssrf;
 
+use InvalidArgumentException;
+
 final class SsrfOptions
 {
     private const DEFAULT_BLACKLIST_IPS = [
@@ -51,7 +53,15 @@ final class SsrfOptions
         public readonly array $blacklistDomains = [],
         public readonly array $blacklistSchemes = [],
         public readonly array $nat64Prefixes = ['64:ff9b::/96'],
-    ) {}
+    ) {
+        foreach ($nat64Prefixes as $prefix) {
+            [$address, $length] = [...explode('/', $prefix, 2), ''];
+
+            if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false || ! in_array($length, ['32', '40', '48', '56', '64', '96'], true)) {
+                throw new InvalidArgumentException(sprintf('NAT64 prefix "%s" must be an IPv6 prefix of length 32, 40, 48, 56, 64 or 96 (RFC 6052).', $prefix));
+            }
+        }
+    }
 
     /** @param array<string, mixed> $config */
     public static function fromConfig(array $config): self

@@ -165,3 +165,33 @@ describe('embedded IPv4 addresses are checked wherever they are carried', functi
             ->toThrow(InvalidIpException::class, 'resolves to "64:ff9b::a9fe:a9fe" (carrying 169.254.169.254) which matches blacklisted range "169.254.0.0/16"');
     });
 });
+
+describe('NAT64 prefixes are judged by the IPv4 address they carry', function (): void {
+    test('a configured prefix inside a blacklisted range still reaches public hosts', function (string $prefix, string $public, string $internal): void {
+        $validator = new SsrfValidator((new SsrfOptions)->withNat64Prefixes([$prefix]));
+
+        expect($validator->validate("http://[{$public}]/")['ips'])->toBe([$public])
+            ->and($validator->isSafe("http://[{$internal}]/"))->toBeFalse();
+    })->with([
+        'local-use NAT64' => ['64:ff9b:1::/96', '64:ff9b:1::5db8:d822', '64:ff9b:1::a9fe:a9fe'],
+        'unique local' => ['fd00:64::/96', 'fd00:64::5db8:d822', 'fd00:64::a9fe:a9fe'],
+    ]);
+
+    test('the well-known prefix is unwrapped even when the option is emptied', function (): void {
+        expect((new SsrfValidator((new SsrfOptions)->withNat64Prefixes([])))->isSafe('http://[64:ff9b::a9fe:a9fe]/'))->toBeFalse();
+    });
+
+    test('an internal target is blocked even with bits set after the embedded address', function (): void {
+        $validator = new SsrfValidator((new SsrfOptions)->withNat64Prefixes(['2a00:1450::/32']));
+
+        expect($validator->isSafe('http://[2a00:1450:a9fe:a9fe:dead:beef:cafe:1]/'))->toBeFalse();
+    });
+
+    test('loopback and unspecified are not read as IPv4-compatible addresses', function (): void {
+        $options = (new SsrfOptions)->withBlacklistIps(['0.0.0.0/8']);
+
+        expect((new SsrfValidator($options))->validate('http://[::1]/')['ips'])->toBe(['::1'])
+            ->and((new SsrfValidator($options))->isSafe('http://[::7f00:1]/'))->toBeTrue()
+            ->and((new SsrfValidator($options->addBlacklistIp('127.0.0.0/8')))->isSafe('http://[::7f00:1]/'))->toBeFalse();
+    });
+});

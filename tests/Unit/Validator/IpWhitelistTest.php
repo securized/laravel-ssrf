@@ -82,6 +82,15 @@ describe('IP whitelist behind NAT64', function (): void {
         'IPv4-compatible' => ['::5db8:d822'],
     ]);
 
+    test('only a well-formed NAT64 address is whitelisted by the IPv4 address it carries', function (): void {
+        $options = (new SsrfOptions)->withNat64Prefixes(['2a00:1450::/32'])->withWhitelistIps(['93.184.216.0/24'])->withBlacklistIps([]);
+        $validate = fn (string $ip): bool => (new SsrfValidator($options, (new FakeDnsResolver)->addRecord('h.example', $ip)))->isSafe('https://h.example/');
+
+        expect($validate('2a00:1450:5db8:d822::'))->toBeTrue()
+            ->and($validate('2a00:1450:5db8:d822:dead:beef:cafe:1'))->toBeFalse()
+            ->and($validate('2a00:1450:5db8:d822:100::'))->toBeFalse();
+    });
+
     test('a NAT64 address forwarding elsewhere is still rejected', function (): void {
         $dns = (new FakeDnsResolver)->addRecord('other.example', '64:ff9b::808:808');
         $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24']);

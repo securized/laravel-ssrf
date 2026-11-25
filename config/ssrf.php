@@ -45,7 +45,8 @@ return [
     |
     | A NAT64 gateway forwards addresses in these prefixes to the IPv4 address
     | they carry, so they are checked against the IP lists as that address.
-    | Add your gateway's prefix if it is not the well-known one.
+    | Add your gateway's prefix if it is not the well-known one, which is
+    | always checked. Lengths: /32, /40, /48, /56, /64 or /96.
     |
     */
     'nat64_prefixes' => ['64:ff9b::/96'],

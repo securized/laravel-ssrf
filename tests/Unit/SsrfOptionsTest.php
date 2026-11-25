@@ -283,6 +283,17 @@ describe('additive wither helpers', function (): void {
 });
 
 describe('SsrfOptions NAT64 prefixes', function (): void {
+    test('a malformed prefix is refused, as it would silently unwrap nothing or the wrong bytes', function (string $prefix): void {
+        expect(fn () => (new SsrfOptions)->withNat64Prefixes([$prefix]))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => SsrfOptions::fromConfig(['nat64_prefixes' => [$prefix]]))->toThrow(InvalidArgumentException::class);
+    })->with([
+        'no length' => ['64:ff9b::'],
+        'length outside RFC 6052' => ['2a00:1450:64::/60'],
+        'IPv4 prefix' => ['10.0.0.0/32'],
+        'not an address' => ['nat64/96'],
+        'empty length' => ['64:ff9b::/'],
+    ]);
+
     test('default to the well-known prefix, also for a config published without the key', function (): void {
         expect((new SsrfOptions)->nat64Prefixes)->toBe(['64:ff9b::/96'])
             ->and(SsrfOptions::fromConfig([])->nat64Prefixes)->toBe(['64:ff9b::/96']);
