@@ -227,17 +227,19 @@ readonly class SsrfValidator
             }
         }
 
-        foreach ($ips as $ip) {
-            foreach ([$ip, ...$this->embeddedIpv4($ip)] as $candidate) {
-                foreach ($opts->blacklistIps as $range) {
-                    if ($this->cidrMatch($candidate, $range)) {
-                        throw new InvalidIpException(sprintf(
-                            'Host "%s" resolves to "%s"%s which matches blacklisted range "%s".',
-                            $host, $ip, $candidate === $ip ? '' : sprintf(' (carrying %s)', $candidate), $range
-                        ));
-                    }
-                }
-            }
+        $blocked = $resolved
+            ->flatMap(fn (string $ip) => collect([$ip, ...$this->embeddedIpv4($ip)])
+                ->crossJoin($opts->blacklistIps)
+                ->map(fn (array $pair) => [$ip, ...$pair]))
+            ->first(fn (array $match) => $this->cidrMatch($match[1], $match[2]));
+
+        if ($blocked !== null) {
+            [$ip, $carried, $range] = $blocked;
+
+            throw new InvalidIpException(sprintf(
+                'Host "%s" resolves to "%s"%s which matches blacklisted range "%s".',
+                $host, $ip, $carried === $ip ? '' : sprintf(' (carrying %s)', $carried), $range
+            ));
         }
 
         return $allowed->all();
