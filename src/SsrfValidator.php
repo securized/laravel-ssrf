@@ -244,10 +244,8 @@ readonly class SsrfValidator
     }
 
     /**
-     * IPv4 addresses an IPv6 address forwards to once a transition mechanism
-     * unwraps it. They are checked like the address itself, so the IPv4 lists
-     * cover these forms without naming each prefix. A NAT64 prefix cannot be
-     * blacklisted outright: behind DNS64 every IPv4-only host resolves into it.
+     * IPv4 addresses a transition mechanism would forward this address to.
+     * NAT64 is unwrapped, never blacklisted: behind DNS64 every IPv4-only host resolves into it.
      *
      * @return list<string>
      */

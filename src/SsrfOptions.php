@@ -15,12 +15,12 @@ final class SsrfOptions
         // IPv6
         '::/128',           // unspecified address
         '::1/128',          // loopback
-        '::/96',            // IPv4-compatible IPv6, deprecated (::7f00:1 = 127.0.0.1)
+        '::/96',            // IPv4-compatible (deprecated)
         '::ffff:0:0/96',    // IPv4-mapped IPv6 (blocks ::ffff:127.0.0.1, etc.)
         '::ffff:0:0:0/96',  // IPv4-translated (SIIT)
-        '64:ff9b:1::/48',   // local-use NAT64 (RFC 8215), embeds an IPv4 address
+        '64:ff9b:1::/48',   // local-use NAT64 (RFC 8215)
         '100::/64',         // discard prefix (RFC 6666)
-        '2001::/32',        // Teredo, embeds IPv4 addresses
+        '2001::/32',        // Teredo
         '2001:db8::/32',    // documentation range
         '2002::/16',        // 6to4 (can embed private IPv4: 2002:c0a8:0101:: = 192.168.1.1)
         'fc00::/7',         // unique local (includes fd00::/8)
@@ -37,7 +37,7 @@ final class SsrfOptions
      * @param  list<int>  $blacklistPorts
      * @param  list<string>  $blacklistDomains
      * @param  list<string>  $blacklistSchemes
-     * @param  list<string>  $nat64Prefixes  RFC 6052 prefixes whose addresses are checked as the IPv4 address they forward to
+     * @param  list<string>  $nat64Prefixes
      */
     public function __construct(
         public readonly bool $sendCredentials = false,

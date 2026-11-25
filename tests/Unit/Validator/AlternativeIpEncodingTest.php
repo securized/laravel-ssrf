@@ -106,14 +106,13 @@ describe('other IPv6 forms that carry an IPv4 address', function (): void {
 });
 
 describe('embedded IPv4 addresses are checked wherever they are carried', function (): void {
-    // What a config published before these ranges were added still contains.
-    $published = fn (): SsrfOptions => (new SsrfOptions)->withBlacklistIps(array_values(array_diff(
+    $configPublishedBefore = fn (): SsrfOptions => (new SsrfOptions)->withBlacklistIps(array_values(array_diff(
         (new SsrfOptions)->blacklistIps,
         ['::/96', '::ffff:0:0/96', '::ffff:0:0:0/96', '64:ff9b:1::/48', '2001::/32', '2002::/16'],
     )));
 
-    test('an internal target is blocked by the IPv4 lists alone', function (string $ip) use ($published): void {
-        expect((new SsrfValidator($published()))->isSafe("http://[{$ip}]/"))->toBeFalse();
+    test('an internal target is blocked by the IPv4 lists alone', function (string $ip) use ($configPublishedBefore): void {
+        expect((new SsrfValidator($configPublishedBefore()))->isSafe("http://[{$ip}]/"))->toBeFalse();
     })->with([
         'IPv4-compatible' => ['::a9fe:a9fe'],
         'IPv4-mapped' => ['::ffff:a9fe:a9fe'],
