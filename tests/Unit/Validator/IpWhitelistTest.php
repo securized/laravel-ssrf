@@ -61,3 +61,40 @@ describe('IP whitelist without pinning', function (): void {
             ->and(fn () => $validator->validate('https://mixed.example/'))->toThrow(InvalidIpException::class);
     });
 });
+
+describe('IP whitelist behind NAT64', function (): void {
+    test('a NAT64 address is whitelisted by the IPv4 address it forwards to', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('ok.example', '64:ff9b::5db8:d822');
+        $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24']);
+
+        expect((new SsrfValidator($options, $dns))->validate('https://ok.example/')['ips'])->toBe(['64:ff9b::5db8:d822']);
+    });
+
+    test('an address the attacker can own is not whitelisted by the IPv4 address it spells', function (string $ip): void {
+        $dns = (new FakeDnsResolver)->addRecord('attacker.example', $ip);
+        $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24'])->withBlacklistIps([]);
+
+        expect((new SsrfValidator($options, $dns))->isSafe('https://attacker.example/'))->toBeFalse();
+    })->with([
+        'ISATAP interface ID' => ['2a00:1450::200:5efe:5db8:d822'],
+        '6to4' => ['2002:5db8:d822::1'],
+        'Teredo' => ['2001:0:5db8:d822::1'],
+        'IPv4-compatible' => ['::5db8:d822'],
+    ]);
+
+    test('only a well-formed NAT64 address is whitelisted by the IPv4 address it carries', function (): void {
+        $options = (new SsrfOptions)->withNat64Prefixes(['2a00:1450::/32'])->withWhitelistIps(['93.184.216.0/24'])->withBlacklistIps([]);
+        $validate = fn (string $ip): bool => (new SsrfValidator($options, (new FakeDnsResolver)->addRecord('h.example', $ip)))->isSafe('https://h.example/');
+
+        expect($validate('2a00:1450:5db8:d822::'))->toBeTrue()
+            ->and($validate('2a00:1450:5db8:d822:dead:beef:cafe:1'))->toBeFalse()
+            ->and($validate('2a00:1450:5db8:d822:100::'))->toBeFalse();
+    });
+
+    test('a NAT64 address forwarding elsewhere is still rejected', function (): void {
+        $dns = (new FakeDnsResolver)->addRecord('other.example', '64:ff9b::808:808');
+        $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24']);
+
+        expect((new SsrfValidator($options, $dns))->isSafe('https://other.example/'))->toBeFalse();
+    });
+});

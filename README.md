@@ -228,6 +228,20 @@ IP entries support CIDR notation for both IPv4 and IPv6:
 ],
 ```
 
+### IPv6 addresses that carry an IPv4 address
+
+Several IPv6 forms exist only to reach an IPv4 address, and a gateway or tunnel on the network forwards them there: `64:ff9b::a9fe:a9fe` is `169.254.169.254` behind a NAT64 gateway. The validator unwraps these and checks the IPv4 address against the same IP lists as the address itself, so an IPv4 blacklist entry covers every wrapping of it. The forms it unwraps are IPv4-compatible, IPv4-mapped, IPv4-translated, 6to4, Teredo (server and client), ISATAP and NAT64.
+
+The transition prefixes nobody should be fetching from are also in the default blacklist as whole ranges. NAT64 is the exception: on an IPv6-only network with DNS64, every IPv4-only host resolves into the NAT64 prefix, so its addresses are only judged by the IPv4 address they carry. The well-known prefix `64:ff9b::/96` is handled out of the box. If your gateway uses its own prefix, list it so its addresses are unwrapped too:
+
+```php
+'nat64_prefixes' => ['64:ff9b::/96', '2001:db8:64::/96'],
+```
+
+A prefix must be IPv6 with one of the RFC 6052 lengths (`/32`, `/40`, `/48`, `/56`, `/64`, `/96`); anything else throws when the options are built. An address in a listed prefix is judged by the IPv4 address it carries and not by the default blacklist ranges around it, so a gateway on `64:ff9b:1::/96` or a unique-local prefix works. A range you add to the blacklist yourself still applies to the address, so adding `64:ff9b::/96` blocks NAT64 outright. The well-known prefix is always unwrapped, whatever the list holds.
+
+An IP whitelist entry admits the NAT64 address that forwards to it: whitelisting `93.184.216.0/24` also allows `64:ff9b::5db8:d822`. That only holds for a well-formed NAT64 address, with nothing set after the embedded IPv4. The other forms are never whitelisted by the IPv4 address they carry, because they can appear in an address the attacker controls.
+
 ### Hostnames
 
 The host is validated under the name curl will actually look up, so the domain lists, DNS and the pin all see the same thing:

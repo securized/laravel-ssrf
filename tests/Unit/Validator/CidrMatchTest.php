@@ -69,3 +69,15 @@ describe('cross-family CIDR', function (): void {
 
     test('IPv4 CIDR does not match IPv6', fn () => expect(cidrValidator(['127.0.0.0/8'])->isSafe('http://[::1]/'))->toBeTrue());
 });
+
+test('a bare IPv6 entry matches every spelling of that address', function (string $url): void {
+    $validator = new SsrfValidator((new SsrfOptions)->withBlacklistIps(['fd00:ec2::254']));
+
+    expect($validator->isSafe($url))->toBeFalse();
+})->with(['http://[fd00:ec2::254]/', 'http://[fd00:ec2:0:0:0:0:0:254]/', 'http://[fd00:0ec2::0254]/', 'http://[FD00:EC2::254]/']);
+
+test('a bare IPv6 entry does not match a different address', function (): void {
+    $validator = new SsrfValidator((new SsrfOptions)->withBlacklistIps(['fd00:ec2::254']));
+
+    expect($validator->isSafe('http://[fd00:ec2::255]/'))->toBeTrue();
+});

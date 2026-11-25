@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Securized\Ssrf;
 
+use InvalidArgumentException;
+
 final class SsrfOptions
 {
-    private const DEFAULT_BLACKLIST_IPS = [
+    public const DEFAULT_BLACKLIST_IPS = [
         // IPv4
         '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8',
         '169.254.0.0/16', '172.16.0.0/12', '192.0.0.0/29', '192.0.2.0/24',
@@ -15,8 +17,12 @@ final class SsrfOptions
         // IPv6
         '::/128',           // unspecified address
         '::1/128',          // loopback
+        '::/96',            // IPv4-compatible (deprecated)
         '::ffff:0:0/96',    // IPv4-mapped IPv6 (blocks ::ffff:127.0.0.1, etc.)
+        '::ffff:0:0:0/96',  // IPv4-translated (SIIT)
+        '64:ff9b:1::/48',   // local-use NAT64 (RFC 8215)
         '100::/64',         // discard prefix (RFC 6666)
+        '2001::/32',        // Teredo
         '2001:db8::/32',    // documentation range
         '2002::/16',        // 6to4 (can embed private IPv4: 2002:c0a8:0101:: = 192.168.1.1)
         'fc00::/7',         // unique local (includes fd00::/8)
@@ -33,6 +39,7 @@ final class SsrfOptions
      * @param  list<int>  $blacklistPorts
      * @param  list<string>  $blacklistDomains
      * @param  list<string>  $blacklistSchemes
+     * @param  list<string>  $nat64Prefixes
      */
     public function __construct(
         public readonly bool $sendCredentials = false,
@@ -45,7 +52,16 @@ final class SsrfOptions
         public readonly array $blacklistPorts = [],
         public readonly array $blacklistDomains = [],
         public readonly array $blacklistSchemes = [],
-    ) {}
+        public readonly array $nat64Prefixes = ['64:ff9b::/96'],
+    ) {
+        foreach ($nat64Prefixes as $prefix) {
+            [$address, $length] = [...explode('/', $prefix, 2), ''];
+
+            if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false || ! in_array($length, ['32', '40', '48', '56', '64', '96'], true)) {
+                throw new InvalidArgumentException(sprintf('NAT64 prefix "%s" must be an IPv6 prefix of length 32, 40, 48, 56, 64 or 96 (RFC 6052).', $prefix));
+            }
+        }
+    }
 
     /** @param array<string, mixed> $config */
     public static function fromConfig(array $config): self
@@ -61,6 +77,7 @@ final class SsrfOptions
             blacklistPorts: array_map('intval', $config['blacklist']['ports'] ?? []),
             blacklistDomains: array_map('strval', $config['blacklist']['domains'] ?? []),
             blacklistSchemes: array_map('strval', $config['blacklist']['schemes'] ?? []),
+            nat64Prefixes: array_map('strval', $config['nat64_prefixes'] ?? ['64:ff9b::/96']),
         );
     }
 
@@ -122,6 +139,12 @@ final class SsrfOptions
         return new self(...[...$this->all(), 'blacklistSchemes' => $schemes]);
     }
 
+    /** @param list<string> $prefixes */
+    public function withNat64Prefixes(array $prefixes): self
+    {
+        return new self(...[...$this->all(), 'nat64Prefixes' => $prefixes]);
+    }
+
     public function addBlacklistIp(string ...$ips): self
     {
         return $this->withBlacklistIps(array_values(array_unique([...$this->blacklistIps, ...$ips])));
@@ -156,6 +179,7 @@ final class SsrfOptions
             'blacklistPorts' => $this->blacklistPorts,
             'blacklistDomains' => $this->blacklistDomains,
             'blacklistSchemes' => $this->blacklistSchemes,
+            'nat64Prefixes' => $this->nat64Prefixes,
         ];
     }
 }

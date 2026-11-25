@@ -21,11 +21,14 @@ readonly class SsrfValidator
 
     private DnsResolver $dns;
 
+    private EmbeddedIpv4 $embedded;
+
     public function __construct(
         private SsrfOptions $options,
         ?DnsResolver $dns = null,
     ) {
         $this->dns = $dns ?? new NativeDnsResolver;
+        $this->embedded = new EmbeddedIpv4($options->nat64Prefixes);
     }
 
     /**
@@ -214,9 +217,10 @@ readonly class SsrfValidator
 
         if ($opts->whitelistIps !== []) {
             $whitelist = collect($opts->whitelistIps);
-            $allowed = $resolved->filter(
-                fn (string $ip) => $whitelist->contains(fn (string $range) => $this->cidrMatch($ip, $range))
-            )->values();
+            // Only NAT64 here: the other forms can sit in an address the attacker owns.
+            $allowed = $resolved->filter(fn (string $ip) => collect([$ip, ...$this->embedded->nat64($ip, wellFormed: true)])->contains(
+                fn (string $candidate) => $whitelist->contains(fn (string $range) => $this->cidrMatch($candidate, $range))
+            ))->values();
 
             // Unpinned, curl may connect to any address the name resolves to.
             if ($allowed->isEmpty() || (! $pinned && $allowed->count() !== $resolved->count())) {
@@ -226,17 +230,37 @@ readonly class SsrfValidator
             }
         }
 
-        $resolved->each(function (string $ip) use ($host, $opts): void {
-            collect($opts->blacklistIps)->each(function (string $range) use ($ip, $host): void {
-                if ($this->cidrMatch($ip, $range)) {
-                    throw new InvalidIpException(
-                        sprintf('Host "%s" resolves to "%s" which matches blacklisted range "%s".', $host, $ip, $range)
-                    );
-                }
-            });
-        });
+        $blocked = $resolved
+            ->flatMap(fn (string $ip) => collect([$ip])
+                ->crossJoin($this->rangesForAddress($ip, $opts))
+                ->concat(collect($this->embedded->in($ip))->crossJoin($opts->blacklistIps))
+                ->map(fn (array $pair) => [$ip, ...$pair]))
+            ->first(fn (array $match) => $this->cidrMatch($match[1], $match[2]));
+
+        if ($blocked !== null) {
+            [$ip, $carried, $range] = $blocked;
+
+            throw new InvalidIpException(sprintf(
+                'Host "%s" resolves to "%s"%s which matches blacklisted range "%s".',
+                $host, $ip, $carried === $ip ? '' : sprintf(' (carrying %s)', $carried), $range
+            ));
+        }
 
         return $allowed->all();
+    }
+
+    /**
+     * A NAT64 prefix may sit inside a default range such as fc00::/7, and its
+     * addresses must then be judged by the IPv4 address they carry. Ranges the
+     * operator added still apply to the address itself.
+     *
+     * @return list<string>
+     */
+    private function rangesForAddress(string $ip, SsrfOptions $opts): array
+    {
+        return $this->embedded->nat64($ip) === []
+            ? $opts->blacklistIps
+            : array_values(array_diff($opts->blacklistIps, SsrfOptions::DEFAULT_BLACKLIST_IPS));
     }
 
     /**
@@ -259,7 +283,9 @@ readonly class SsrfValidator
     private function cidrMatch(string $ip, string $cidr): bool
     {
         if (! str_contains($cidr, '/')) {
-            return $ip === $cidr;
+            $packed = @inet_pton($ip);
+
+            return $packed !== false && $packed === @inet_pton($cidr);
         }
 
         [$subnet, $prefix] = explode('/', $cidr, 2);

@@ -40,6 +40,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | NAT64 Prefixes
+    |--------------------------------------------------------------------------
+    |
+    | A NAT64 gateway forwards addresses in these prefixes to the IPv4 address
+    | they carry, so they are checked against the IP lists as that address.
+    | Add your gateway's prefix if it is not the well-known one, which is
+    | always checked. Lengths: /32, /40, /48, /56, /64 or /96.
+    |
+    */
+    'nat64_prefixes' => ['64:ff9b::/96'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Whitelists
     |--------------------------------------------------------------------------
     |
@@ -99,8 +112,12 @@ return [
             // IPv6
             '::/128',           // Unspecified address
             '::1/128',          // Loopback
+            '::/96',            // IPv4-compatible (deprecated)
             '::ffff:0:0/96',    // IPv4-mapped IPv6 (blocks ::ffff:127.0.0.1 etc.)
+            '::ffff:0:0:0/96',  // IPv4-translated (SIIT)
+            '64:ff9b:1::/48',   // Local-use NAT64 (RFC 8215)
             '100::/64',         // Discard prefix (RFC 6666)
+            '2001::/32',        // Teredo
             '2001:db8::/32',    // Documentation range
             '2002::/16',        // 6to4 (can embed private IPv4)
             'fc00::/7',         // Unique local (RFC 4193, includes fd00::/8)
