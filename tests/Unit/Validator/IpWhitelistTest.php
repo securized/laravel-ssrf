@@ -70,6 +70,18 @@ describe('IP whitelist behind NAT64', function (): void {
         expect((new SsrfValidator($options, $dns))->validate('https://ok.example/')['ips'])->toBe(['64:ff9b::5db8:d822']);
     });
 
+    test('an address the attacker can own is not whitelisted by the IPv4 address it spells', function (string $ip): void {
+        $dns = (new FakeDnsResolver)->addRecord('attacker.example', $ip);
+        $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24'])->withBlacklistIps([]);
+
+        expect((new SsrfValidator($options, $dns))->isSafe('https://attacker.example/'))->toBeFalse();
+    })->with([
+        'ISATAP interface ID' => ['2a00:1450::200:5efe:5db8:d822'],
+        '6to4' => ['2002:5db8:d822::1'],
+        'Teredo' => ['2001:0:5db8:d822::1'],
+        'IPv4-compatible' => ['::5db8:d822'],
+    ]);
+
     test('a NAT64 address forwarding elsewhere is still rejected', function (): void {
         $dns = (new FakeDnsResolver)->addRecord('other.example', '64:ff9b::808:808');
         $options = (new SsrfOptions)->withWhitelistIps(['93.184.216.0/24']);

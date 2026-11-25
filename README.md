@@ -238,7 +238,7 @@ The transition prefixes nobody should be fetching from are also in the default b
 'nat64_prefixes' => ['64:ff9b::/96', '2001:db8:64::/96'],
 ```
 
-An IP whitelist entry works the same way: whitelisting `93.184.216.0/24` also admits the NAT64 address that forwards to it.
+An IP whitelist entry admits the NAT64 address that forwards to it: whitelisting `93.184.216.0/24` also allows `64:ff9b::5db8:d822`. The other forms are never whitelisted by the IPv4 address they carry, because they can appear in an address the attacker controls.
 
 ### Hostnames
 

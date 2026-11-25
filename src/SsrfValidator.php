@@ -214,7 +214,8 @@ readonly class SsrfValidator
 
         if ($opts->whitelistIps !== []) {
             $whitelist = collect($opts->whitelistIps);
-            $allowed = $resolved->filter(fn (string $ip) => collect([$ip, ...$this->embeddedIpv4($ip)])->contains(
+            // Only NAT64 here: the other forms can sit in an address the attacker owns.
+            $allowed = $resolved->filter(fn (string $ip) => collect([$ip, ...$this->nat64Ipv4($ip)])->contains(
                 fn (string $candidate) => $whitelist->contains(fn (string $range) => $this->cidrMatch($candidate, $range))
             ))->values();
 
@@ -280,18 +281,34 @@ readonly class SsrfValidator
             $found[] = substr($packed, 12);
         }
 
-        foreach ($this->options->nat64Prefixes as $prefix) {
+        return array_values(array_unique([
+            ...array_map(fn (string $bytes): string => (string) inet_ntop($bytes), $found),
+            ...$this->nat64Ipv4($ip),
+        ]));
+    }
+
+    /**
+     * RFC 6052: the IPv4 address follows the prefix, skipping byte 8.
+     *
+     * @return list<string>
+     */
+    private function nat64Ipv4(string $ip): array
+    {
+        $packed = @inet_pton($ip);
+        $found = [];
+
+        foreach (is_string($packed) && strlen($packed) === 16 ? $this->options->nat64Prefixes : [] as $prefix) {
             if ($this->cidrMatch($ip, $prefix)) {
-                // RFC 6052: the address follows the prefix, skipping byte 8.
                 $bytes = '';
                 for ($i = intdiv((int) explode('/', $prefix)[1], 8); strlen($bytes) < 4 && $i < 16; $i++) {
                     $bytes .= $i === 8 ? '' : $packed[$i];
                 }
-                $found[] = str_pad($bytes, 4, "\0");
+                $found[] = (string) inet_ntop(str_pad($bytes, 4, "\0"));
             }
         }
 
-        return array_values(array_unique(array_map(fn (string $bytes): string => (string) inet_ntop($bytes), $found)));
+        return $found;
+
     }
 
     /**
